@@ -40,40 +40,13 @@ export class GameScene extends Scene {
     this.gameConfig = gameConfig;
   }
 
+  init(): void {
+    // Get audio manager from registry (loaded in LoadingScene)
+    this.audioManager = this.registry.get("managers").audioManager;
+  }
+
   preload(): void {
     const dpr = this.gameConfig.dpr;
-
-    // Initialize audio manager
-    this.audioManager = new AudioManager(this);
-
-    // Load audio assets
-    this.audioManager.preloadAudio("slash", "src/audio/sword-slash-simple.mp3");
-    this.audioManager.preloadAudio("hit", "src/audio/sword-slash-clank.mp3");
-    this.audioManager.preloadAudio(
-      "electric-spark",
-      "src/audio/electric-spark.mp3"
-    );
-    this.audioManager.preloadAudio("explode", "src/audio/explode.mp3");
-    this.audioManager.preloadAudio("coin-received", "src/audio/coin-received.mp3");
-
-    // Load character assets
-    this.load.image("orange-bot", "src/image/orange-bot.webp");
-    this.load.image("leaf-bot", "src/image/leaf-bot.webp");
-    this.load.image("fly-bot", "src/image/fly-bot.webp");
-    this.load.image("fly-bot-attack", "src/image/fly-bot-attack.webp");
-
-    // Load coin animation frames
-    for (let i = 1; i <= 6; i++) {
-      this.load.image(`coin-${i}`, `src/image/coin/star coin rotate ${i}.webp`);
-    }
-
-    // Load electric-leftover animation frames
-    for (let i = 6; i <= 10; i++) {
-      this.load.image(
-        `electric-leftover-${i}`,
-        `src/anim/electric-leftover/Explosion_blue_circle${i}.png`
-      );
-    }
 
     // Create a simple particle texture for sparks
     const graphics = this.make.graphics({ x: 0, y: 0 });
@@ -120,9 +93,6 @@ export class GameScene extends Scene {
     // Set background color
     this.cameras.main.setBackgroundColor("#000");
 
-    // Create UI (HP bar and coins)
-    this.createUI();
-
     // Initialize audio manager sounds
     this.audioManager?.addSound("slash");
     this.audioManager?.addSound("hit");
@@ -130,6 +100,7 @@ export class GameScene extends Scene {
     this.audioManager?.addSound("explode");
     this.audioManager?.addSound("coin-received");
 
+    // Create animations BEFORE UI
     // Create electric-leftover animation
     const electricFrames = [];
     for (let i = 6; i <= 10; i++) {
@@ -153,6 +124,9 @@ export class GameScene extends Scene {
       frameRate: 12,
       repeat: -1, // Loop forever
     });
+
+    // Create UI (HP bar and coins) - AFTER animations are created
+    this.createUI();
 
     // Spawn initial random target
     this.spawnRandomTarget();
