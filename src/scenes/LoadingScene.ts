@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { GameConfig } from "../types";
+import { AudioManager } from "../managers/AudioManager";
 
 export class LoadingScene extends Phaser.Scene {
   private gameConfig: GameConfig;
@@ -9,6 +10,7 @@ export class LoadingScene extends Phaser.Scene {
   private percentText?: Phaser.GameObjects.Text;
   private assetText?: Phaser.GameObjects.Text;
   private fontLoaded: boolean = false;
+  private audioManager?: AudioManager;
 
   constructor(gameConfig: GameConfig) {
     super({ key: "LoadingScene" });
@@ -16,6 +18,9 @@ export class LoadingScene extends Phaser.Scene {
   }
 
   preload(): void {
+    // Initialize AudioManager and store in registry
+    this.audioManager = new AudioManager(this);
+    this.registry.set('managers', { audioManager: this.audioManager });
     const { dpr, canvasWidth, gameHeight } = this.gameConfig;
     const width = canvasWidth * dpr;
     const height = gameHeight;
@@ -75,14 +80,12 @@ export class LoadingScene extends Phaser.Scene {
   }
 
   loadGameAssets(): void {
-    const { audioManager } = this.registry.get("managers");
-
     // Load audio assets
-    audioManager.preloadAudio("slash", "src/audio/sword-slash-simple.mp3");
-    audioManager.preloadAudio("hit", "src/audio/sword-slash-clank.mp3");
-    audioManager.preloadAudio("electric-spark", "src/audio/electric-spark.mp3");
-    audioManager.preloadAudio("explode", "src/audio/explode.mp3");
-    audioManager.preloadAudio("coin-received", "src/audio/coin-received.mp3");
+    this.audioManager!.preloadAudio("slash", "src/audio/sword-slash-simple.mp3");
+    this.audioManager!.preloadAudio("hit", "src/audio/sword-slash-clank.mp3");
+    this.audioManager!.preloadAudio("electric-spark", "src/audio/electric-spark.mp3");
+    this.audioManager!.preloadAudio("explode", "src/audio/explode.mp3");
+    this.audioManager!.preloadAudio("coin-received", "src/audio/coin-received.mp3");
 
     // Load character assets
     this.load.image("orange-bot", "src/image/orange-bot.webp");
