@@ -822,7 +822,7 @@ export class GameScene extends Scene {
     const flashGraphics = this.add.graphics();
     flashGraphics.setDepth(90);
 
-    const flashHeight = gameHeight * dpr * 0.4; // 40% of screen height
+    const flashHeight = gameHeight * dpr * 0.52; // 52% of screen height (40% + 30%)
 
     // Draw gradient (red at bottom, transparent at top)
     // Since Phaser doesn't support gradient fills directly, we'll use multiple horizontal strips
