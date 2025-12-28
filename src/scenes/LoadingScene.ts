@@ -4,13 +4,10 @@ import { AudioManager } from "../managers/AudioManager";
 
 export class LoadingScene extends Phaser.Scene {
   private gameConfig: GameConfig;
-  private progressBar?: Phaser.GameObjects.Graphics;
-  private progressBox?: Phaser.GameObjects.Graphics;
-  private loadingLogo?: Phaser.GameObjects.Image;
-  private percentText?: Phaser.GameObjects.Text;
-  private assetText?: Phaser.GameObjects.Text;
   private fontLoaded: boolean = false;
   private audioManager?: AudioManager;
+  private loadingProgressBar?: HTMLElement;
+  private loadingText?: HTMLElement;
 
   constructor(gameConfig: GameConfig) {
     super({ key: "LoadingScene" });
@@ -21,15 +18,10 @@ export class LoadingScene extends Phaser.Scene {
     // Initialize AudioManager and store in registry
     this.audioManager = new AudioManager(this);
     this.registry.set('managers', { audioManager: this.audioManager });
-    const { dpr, canvasWidth, gameHeight } = this.gameConfig;
-    const width = canvasWidth * dpr;
-    const height = gameHeight;
 
-    // Load logo image
-    this.load.image("logo", "src/image/logo.webp");
-
-    // Create loading UI
-    this.createLoadingUI(width, height, dpr);
+    // Get DOM elements
+    this.loadingProgressBar = document.getElementById('loading-progress-bar') || undefined;
+    this.loadingText = document.getElementById('loading-text') || undefined;
 
     // Load Google Font
     this.loadGoogleFont();
@@ -39,21 +31,15 @@ export class LoadingScene extends Phaser.Scene {
 
     // Update progress bar
     this.load.on("progress", (value: number) => {
-      this.percentText?.setText(`${Math.round(value * 100)}%`);
-      if (this.progressBar) {
-        this.progressBar.clear();
-        this.progressBar.fillStyle(0xffffff, 1);
-        this.progressBar.fillRect(
-          width / 2 - 160 * dpr,
-          height / 2 + 10 * dpr,
-          300 * dpr * value,
-          30 * dpr
-        );
+      if (this.loadingProgressBar) {
+        this.loadingProgressBar.style.width = `${Math.round(value * 100)}%`;
       }
     });
 
     this.load.on("fileprogress", (file: any) => {
-      this.assetText?.setText(`Loading: ${file.key}`);
+      if (this.loadingText) {
+        this.loadingText.textContent = `Loading: ${file.key}`;
+      }
     });
 
     this.load.on("complete", () => {
@@ -110,48 +96,6 @@ export class LoadingScene extends Phaser.Scene {
     }
   }
 
-  createLoadingUI(width: number, height: number, dpr: number): void {
-    // Create logo once it's loaded
-    this.load.once("filecomplete-image-logo", () => {
-      this.loadingLogo = this.add.image(width / 2, height / 2 - 60 * dpr, "logo");
-      this.loadingLogo.setOrigin(0.5);
-
-      // Set width to 200px, maintaining aspect ratio
-      const logoWidth = 200 * dpr;
-      const logoHeight = (logoWidth * this.loadingLogo.height) / this.loadingLogo.width;
-      this.loadingLogo.setDisplaySize(logoWidth, logoHeight);
-    });
-
-    // Progress box (border)
-    this.progressBox = this.add.graphics();
-    this.progressBox.lineStyle(2 * dpr, 0xffffff, 1);
-    this.progressBox.strokeRect(
-      width / 2 - 162 * dpr,
-      height / 2 + 8 * dpr,
-      324 * dpr,
-      34 * dpr
-    );
-
-    // Progress bar
-    this.progressBar = this.add.graphics();
-
-    // Percent text
-    this.percentText = this.add.text(width / 2, height / 2 + 25 * dpr, "0%", {
-      fontFamily: "Arial, sans-serif",
-      fontSize: `${18 * dpr}px`,
-      color: "#ffffff",
-    });
-    this.percentText.setOrigin(0.5);
-
-    // Asset text
-    this.assetText = this.add.text(width / 2, height / 2 + 60 * dpr, "", {
-      fontFamily: "Arial, sans-serif",
-      fontSize: `${14 * dpr}px`,
-      color: "#888888",
-    });
-    this.assetText.setOrigin(0.5);
-  }
-
   checkFontAndTransition(): void {
     // Check if font is loaded
     if (this.fontLoaded) {
@@ -165,10 +109,17 @@ export class LoadingScene extends Phaser.Scene {
   }
 
   transitionToGame(): void {
-    // Fade out loading screen
-    this.cameras.main.fadeOut(500, 0, 0, 0);
-    this.cameras.main.once("camerafadeoutcomplete", () => {
-      this.scene.start("GameScene");
-    });
+    // Hide DOM loading screen
+    const loadingScreen = document.getElementById('loading-screen');
+    if (loadingScreen) {
+      loadingScreen.classList.add('hidden');
+      // Remove from DOM after transition
+      setTimeout(() => {
+        loadingScreen.remove();
+      }, 500);
+    }
+
+    // Start game scene
+    this.scene.start("GameScene");
   }
 }
