@@ -213,144 +213,144 @@ export class GameScene extends Scene {
 
     // Check for collision with target (pixel-perfect)
     // Only allow hits when target is at least 80% visible
-    if (this.currentTarget && this.currentTarget.getContainer().alpha >= 0.8) {
-      const containerBounds = this.currentTarget.getContainer().getBounds();
-      let hitInThisSegment = false; // Track if we hit in this movement to avoid duplicate sounds/shakes
+    if (!this.currentTarget || this.currentTarget.getContainer().alpha < 0.8) return;
 
-      // If we have a previous point, interpolate along the line to check all pixels
-      if (prevPoint) {
-        const dx = pointer.x - prevPoint.x;
-        const dy = pointer.y - prevPoint.y;
-        const distance = Math.sqrt(dx * dx + dy * dy);
+    const containerBounds = this.currentTarget.getContainer().getBounds();
+    let hitInThisSegment = false; // Track if we hit in this movement to avoid duplicate sounds/shakes
 
-        // Accumulate slash length
-        this.currentSlashLength += distance;
+    // If we have a previous point, interpolate along the line to check all pixels
+    if (prevPoint) {
+      const dx = pointer.x - prevPoint.x;
+      const dy = pointer.y - prevPoint.y;
+      const distance = Math.sqrt(dx * dx + dy * dy);
 
-        // Check points along the line (every 4 pixels for performance)
-        const stepSize = 4;
-        const steps = Math.ceil(distance / stepSize);
+      // Accumulate slash length
+      this.currentSlashLength += distance;
 
-        for (let i = 0; i <= steps; i++) {
-          const t = steps > 0 ? i / steps : 1;
-          const checkX = prevPoint.x + dx * t;
-          const checkY = prevPoint.y + dy * t;
+      // Check points along the line (every 4 pixels for performance)
+      const stepSize = 4;
+      const steps = Math.ceil(distance / stepSize);
 
-          if (containerBounds.contains(checkX, checkY)) {
-            // Convert to container-relative coordinates
-            const relativeX = checkX - containerBounds.centerX;
-            const relativeY = checkY - containerBounds.centerY;
+      for (let i = 0; i <= steps; i++) {
+        const t = steps > 0 ? i / steps : 1;
+        const checkX = prevPoint.x + dx * t;
+        const checkY = prevPoint.y + dy * t;
 
-            // Check if pixel is opaque
-            if (this.currentTarget.isPixelOpaque(relativeX, relativeY)) {
-              // Only play sound and shake once per movement segment
-              if (!hitInThisSegment) {
-                this.hasHitTarget = true;
-                this.audioManager?.play("hit");
-                this.currentTarget.shake(dx, dy);
-                hitInThisSegment = true;
+        if (containerBounds.contains(checkX, checkY)) {
+          // Convert to container-relative coordinates
+          const relativeX = checkX - containerBounds.centerX;
+          const relativeY = checkY - containerBounds.centerY;
 
-                // Store last hit position for damage display
-                this.lastHitX = checkX;
-                this.lastHitY = checkY;
-              }
-
-              // Calculate entry/exit points once for both damage and sparks
-              const containerBounds = this.currentTarget
-                .getContainer()
-                .getBounds();
-              const relativeStartX = checkX - containerBounds.centerX;
-              const relativeStartY = checkY - containerBounds.centerY;
-
-              const dpr = this.gameConfig.dpr;
-              const length = Math.sqrt(dx * dx + dy * dy);
-              const normalizedX = length > 0 ? dx / length : 0;
-              const normalizedY = length > 0 ? dy / length : 0;
-              const maxSearchLength = 100 * dpr;
-              const sampleStep = 2 * dpr;
-
-              let worldStartX = checkX;
-              let worldStartY = checkY;
-              let worldEndX = checkX;
-              let worldEndY = checkY;
-
-              // Search backward
-              for (
-                let dist = sampleStep;
-                dist < maxSearchLength;
-                dist += sampleStep
-              ) {
-                const testX = relativeStartX - normalizedX * dist;
-                const testY = relativeStartY - normalizedY * dist;
-                if (this.currentTarget.isPixelOpaque(testX, testY)) {
-                  worldStartX = testX + containerBounds.centerX;
-                  worldStartY = testY + containerBounds.centerY;
-                } else {
-                  break;
-                }
-              }
-
-              // Search forward
-              for (
-                let dist = sampleStep;
-                dist < maxSearchLength;
-                dist += sampleStep
-              ) {
-                const testX = relativeStartX + normalizedX * dist;
-                const testY = relativeStartY + normalizedY * dist;
-                if (this.currentTarget.isPixelOpaque(testX, testY)) {
-                  worldEndX = testX + containerBounds.centerX;
-                  worldEndY = testY + containerBounds.centerY;
-                } else {
-                  break;
-                }
-              }
-
-              // Draw slash damage using pre-calculated points (no duplicate search)
-              this.currentTarget.drawSlashDamage(
-                checkX,
-                checkY,
-                dx,
-                dy,
-                worldStartX,
-                worldStartY,
-                worldEndX,
-                worldEndY
-              );
-
-              // Emit sparks and store slash mark
-              this.sparks?.emitAtSlash(
-                worldStartX,
-                worldStartY,
-                worldEndX,
-                worldEndY
-              );
-              this.sparks?.addSlashMark(
-                worldStartX,
-                worldStartY,
-                worldEndX,
-                worldEndY
-              );
-
+          // Check if pixel is opaque
+          if (this.currentTarget.isPixelOpaque(relativeX, relativeY)) {
+            // Only play sound and shake once per movement segment
+            if (!hitInThisSegment) {
               this.hasHitTarget = true;
+              this.audioManager?.play("hit");
+              this.currentTarget.shake(dx, dy);
+              hitInThisSegment = true;
+
+              // Store last hit position for damage display
+              this.lastHitX = checkX;
+              this.lastHitY = checkY;
             }
+
+            // Calculate entry/exit points once for both damage and sparks
+            const containerBounds = this.currentTarget
+              .getContainer()
+              .getBounds();
+            const relativeStartX = checkX - containerBounds.centerX;
+            const relativeStartY = checkY - containerBounds.centerY;
+
+            const dpr = this.gameConfig.dpr;
+            const length = Math.sqrt(dx * dx + dy * dy);
+            const normalizedX = length > 0 ? dx / length : 0;
+            const normalizedY = length > 0 ? dy / length : 0;
+            const maxSearchLength = 100 * dpr;
+            const sampleStep = 2 * dpr;
+
+            let worldStartX = checkX;
+            let worldStartY = checkY;
+            let worldEndX = checkX;
+            let worldEndY = checkY;
+
+            // Search backward
+            for (
+              let dist = sampleStep;
+              dist < maxSearchLength;
+              dist += sampleStep
+            ) {
+              const testX = relativeStartX - normalizedX * dist;
+              const testY = relativeStartY - normalizedY * dist;
+              if (this.currentTarget.isPixelOpaque(testX, testY)) {
+                worldStartX = testX + containerBounds.centerX;
+                worldStartY = testY + containerBounds.centerY;
+              } else {
+                break;
+              }
+            }
+
+            // Search forward
+            for (
+              let dist = sampleStep;
+              dist < maxSearchLength;
+              dist += sampleStep
+            ) {
+              const testX = relativeStartX + normalizedX * dist;
+              const testY = relativeStartY + normalizedY * dist;
+              if (this.currentTarget.isPixelOpaque(testX, testY)) {
+                worldEndX = testX + containerBounds.centerX;
+                worldEndY = testY + containerBounds.centerY;
+              } else {
+                break;
+              }
+            }
+
+            // Draw slash damage using pre-calculated points (no duplicate search)
+            this.currentTarget.drawSlashDamage(
+              checkX,
+              checkY,
+              dx,
+              dy,
+              worldStartX,
+              worldStartY,
+              worldEndX,
+              worldEndY
+            );
+
+            // Emit sparks and store slash mark
+            this.sparks?.emitAtSlash(
+              worldStartX,
+              worldStartY,
+              worldEndX,
+              worldEndY
+            );
+            this.sparks?.addSlashMark(
+              worldStartX,
+              worldStartY,
+              worldEndX,
+              worldEndY
+            );
+
+            this.hasHitTarget = true;
           }
         }
-      } else {
-        // First point - just check this single point
-        if (containerBounds.contains(pointer.x, pointer.y)) {
-          const relativeX = pointer.x - containerBounds.centerX;
-          const relativeY = pointer.y - containerBounds.centerY;
+      }
+    } else {
+      // First point - just check this single point
+      if (containerBounds.contains(pointer.x, pointer.y)) {
+        const relativeX = pointer.x - containerBounds.centerX;
+        const relativeY = pointer.y - containerBounds.centerY;
 
-          if (this.currentTarget.isPixelOpaque(relativeX, relativeY)) {
-            this.hasHitTarget = true;
-            this.audioManager?.play("hit");
-            this.currentTarget.drawSlashDamage(pointer.x, pointer.y, 0, 0);
-            this.currentTarget.shake(0, 0);
+        if (this.currentTarget.isPixelOpaque(relativeX, relativeY)) {
+          this.hasHitTarget = true;
+          this.audioManager?.play("hit");
+          this.currentTarget.drawSlashDamage(pointer.x, pointer.y, 0, 0);
+          this.currentTarget.shake(0, 0);
 
-            // Store hit position for damage display
-            this.lastHitX = pointer.x;
-            this.lastHitY = pointer.y;
-          }
+          // Store hit position for damage display
+          this.lastHitX = pointer.x;
+          this.lastHitY = pointer.y;
         }
       }
     }
@@ -377,6 +377,9 @@ export class GameScene extends Scene {
       // Check if target is dead
       if (this.currentTarget.isDead()) {
         const dyingTarget = this.currentTarget;
+
+        // Clear currentTarget reference immediately to prevent further interaction
+        this.currentTarget = undefined;
 
         // Clear slash marks from sparks system
         this.sparks?.clearSlashMarks();
