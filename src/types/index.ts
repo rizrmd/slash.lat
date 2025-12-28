@@ -19,4 +19,14 @@ export interface GameConfig {
     gameWidth: number;
     canvasWidth: number;
     gameHeight: number;
+    gameAreaWidth: number;  // Actual play area width (max 500px desktop, full width mobile)
+    gameAreaOffsetX: number; // X offset to center game area on desktop
+    gameAreaHeight: number;  // Actual play area height (full height minus bottom UI space)
+    gameAreaOffsetY: number; // Y offset for game area (always 0 at top)
+}
+
+export interface Weapon {
+    id: string;
+    name: string;
+    damage: number;
 }

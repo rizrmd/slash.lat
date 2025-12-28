@@ -6,6 +6,7 @@ import { Target } from "../characters/Target";
 import { SlashTrail } from "../effects/SlashTrail";
 import { Sparks } from "../effects/Sparks";
 import { AudioManager } from "../managers/AudioManager";
+import { WeaponManager } from "../managers/WeaponManager";
 import { GameConfig } from "../types";
 
 export class GameScene extends Scene {
@@ -20,6 +21,9 @@ export class GameScene extends Scene {
   private currentSlashLength: number = 0;
   private lastHitX: number = 0;
   private lastHitY: number = 0;
+  private uiCamera?: Phaser.Cameras.Scene2D.Camera;
+  private gameLayer?: Phaser.GameObjects.Container;
+  private uiLayer?: Phaser.GameObjects.Container;
 
   // HP and Coins
   private maxHP: number = 1000;
@@ -32,8 +36,7 @@ export class GameScene extends Scene {
   private coinSprite?: Phaser.GameObjects.Sprite;
   private coinCounterX: number = 0;
   private coinCounterY: number = 0;
-  private weaponIndicator?: Phaser.GameObjects.Graphics;
-  private weaponText?: Phaser.GameObjects.Text;
+  private weaponManager?: WeaponManager;
 
   constructor(gameConfig: GameConfig) {
     super({ key: "GameScene" });
@@ -92,13 +95,50 @@ export class GameScene extends Scene {
   }
 
   create(): void {
-    const { canvasWidth, gameHeight, gameWidth, dpr } = this.gameConfig;
+    const {
+      canvasWidth,
+      gameHeight,
+      gameWidth,
+      dpr,
+      gameAreaWidth,
+      gameAreaOffsetX,
+      gameAreaHeight,
+    } = this.gameConfig;
 
     // Check orientation on mobile
     this.checkOrientation();
 
-    // Set background color
-    this.cameras.main.setBackgroundColor("#000");
+    // Create separate layers for game objects and UI
+    this.gameLayer = this.add.container(0, 0);
+    this.uiLayer = this.add.container(0, 0);
+
+    // Create separate UI camera that spans full canvas (for UI elements)
+    this.uiCamera = this.cameras.add(0, 0, canvasWidth * dpr, gameHeight * dpr);
+    this.uiCamera.setName("uiCamera");
+
+    // Main camera spans full canvas but is offset to center game area on desktop
+    // The game area dimensions act as coordinate reference, not clipping bounds
+    this.cameras.main.setViewport(0, 0, canvasWidth * dpr, gameHeight * dpr);
+
+    // Offset camera to center game area on desktop
+    this.cameras.main.setScroll(
+      -gameAreaOffsetX * dpr,
+      0
+    );
+
+    // Main camera ignores UI layer (only shows game objects not in UI layer)
+    this.cameras.main.ignore(this.uiLayer);
+
+    // UI camera only shows UI layer (ignores everything else)
+    this.uiCamera.ignore(this.gameLayer);
+
+    // Make UI camera ignore all existing game objects
+    const gameObjects = this.children.getAll();
+    gameObjects.forEach((obj) => {
+      if (obj !== this.uiLayer && obj !== this.gameLayer) {
+        this.uiCamera?.ignore(obj as Phaser.GameObjects.GameObject);
+      }
+    });
 
     // Initialize audio manager sounds
     this.audioManager?.addSound("knife-slash");
@@ -136,14 +176,31 @@ export class GameScene extends Scene {
     // Create UI (HP bar and coins) - AFTER animations are created
     this.createUI();
 
+    // Initialize weapon manager with knife as default weapon
+    const defaultWeapon = WeaponManager.getWeaponById("knife");
+    if (defaultWeapon && this.uiLayer) {
+      this.weaponManager = new WeaponManager(
+        this,
+        this.gameConfig,
+        this.uiLayer,
+        defaultWeapon
+      );
+      this.weaponManager.createWeaponIndicator();
+    }
+
     // Spawn initial random target
     this.spawnRandomTarget();
 
     // Initialize slash trail effect
     this.slashTrail = new SlashTrail(this, this.gameConfig);
+    // Make UI camera ignore slash trail graphics
+    this.ignoreFromUICamera(this.slashTrail.graphics);
+    this.ignoreFromUICamera(this.slashTrail.renderTexture);
 
     // Initialize sparks effect
     this.sparks = new Sparks(this, this.gameConfig, "electric-spark");
+    // Make UI camera ignore spark particles (particle emitters are managed as GameObjects)
+    this.ignoreFromUICamera(this.sparks.sparkParticles);
 
     // Set up input handlers
     this.input.on("pointerdown", this.onPointerDown, this);
@@ -186,6 +243,7 @@ export class GameScene extends Scene {
             )
             .setOrigin(0.5)
             .setDepth(1000);
+          this.uiLayer!.add(this.orientationWarning);
         }
         this.orientationWarning.setVisible(true);
         this.scene.pause();
@@ -202,10 +260,13 @@ export class GameScene extends Scene {
     // Only allow starting new slash if previous one is complete
     if (!this.canStartNewSlash || !this.slashTrail) return;
 
+    // Convert screen coordinates to game area coordinates
+    const gamePos = this.screenToGame(pointer.x, pointer.y);
+
     this.canStartNewSlash = false;
     this.hasHitTarget = false;
     this.currentSlashLength = 0; // Reset slash length for new slash
-    this.slashTrail.startDrawing(pointer.x, pointer.y);
+    this.slashTrail.startDrawing(gamePos.x, gamePos.y);
 
     // Play slash sound
     this.audioManager?.play("knife-slash");
@@ -214,8 +275,11 @@ export class GameScene extends Scene {
   onPointerMove(pointer: Phaser.Input.Pointer): void {
     if (!this.slashTrail?.isCurrentlyDrawing()) return;
 
+    // Convert screen coordinates to game area coordinates
+    const gamePos = this.screenToGame(pointer.x, pointer.y);
+
     const prevPoint = this.slashTrail.getLastPoint();
-    const canContinue = this.slashTrail.addTrailPoint(pointer.x, pointer.y);
+    const canContinue = this.slashTrail.addTrailPoint(gamePos.x, gamePos.y);
 
     if (!canContinue) return;
 
@@ -229,8 +293,8 @@ export class GameScene extends Scene {
 
     // If we have a previous point, interpolate along the line to check all pixels
     if (prevPoint) {
-      const dx = pointer.x - prevPoint.x;
-      const dy = pointer.y - prevPoint.y;
+      const dx = gamePos.x - prevPoint.x;
+      const dy = gamePos.y - prevPoint.y;
       const distance = Math.sqrt(dx * dx + dy * dy);
 
       // Accumulate slash length
@@ -347,19 +411,19 @@ export class GameScene extends Scene {
       }
     } else {
       // First point - just check this single point
-      if (containerBounds.contains(pointer.x, pointer.y)) {
-        const relativeX = pointer.x - containerBounds.centerX;
-        const relativeY = pointer.y - containerBounds.centerY;
+      if (containerBounds.contains(gamePos.x, gamePos.y)) {
+        const relativeX = gamePos.x - containerBounds.centerX;
+        const relativeY = gamePos.y - containerBounds.centerY;
 
         if (this.currentTarget.isPixelOpaque(relativeX, relativeY)) {
           this.hasHitTarget = true;
           this.audioManager?.play("knife-clank");
-          this.currentTarget.drawSlashDamage(pointer.x, pointer.y, 0, 0);
+          this.currentTarget.drawSlashDamage(gamePos.x, gamePos.y, 0, 0);
           this.currentTarget.shake(0, 0);
 
           // Store hit position for damage display
-          this.lastHitX = pointer.x;
-          this.lastHitY = pointer.y;
+          this.lastHitX = gamePos.x;
+          this.lastHitY = gamePos.y;
         }
       }
     }
@@ -378,7 +442,12 @@ export class GameScene extends Scene {
         50 + (this.currentSlashLength / maxSlashLength) * 50,
         100
       );
-      this.currentTarget.showDamage(damage, this.lastHitX, this.lastHitY);
+      const damageText = this.currentTarget.showDamage(
+        damage,
+        this.lastHitX,
+        this.lastHitY
+      );
+      this.ignoreFromUICamera(damageText);
 
       // Apply damage to target
       this.currentTarget.takeDamage(damage);
@@ -401,13 +470,21 @@ export class GameScene extends Scene {
 
         // Spawn coin animation from enemy position
         const enemyPos = dyingTarget.getContainer().getBounds();
-        this.spawnCoinAnimation(enemyPos.centerX, enemyPos.centerY, 10);
+        // Convert enemy position from game coordinates to screen coordinates
+        const screenEnemyPos = this.gameToScreen(
+          enemyPos.centerX,
+          enemyPos.centerY
+        );
+        this.spawnCoinAnimation(screenEnemyPos.x, screenEnemyPos.y, 10);
 
         // Trigger explosion animation and fade out
-        dyingTarget.explode(() => {
+        const explosionObjects = dyingTarget.explode(() => {
           // Destroy target after explosion
           dyingTarget.destroy();
         });
+
+        // Make UI camera ignore all explosion objects
+        explosionObjects.forEach((obj) => this.ignoreFromUICamera(obj));
 
         // Fade out the dying target (slower to see the explosion)
         this.tweens.add({
@@ -429,29 +506,77 @@ export class GameScene extends Scene {
   }
 
   /**
-   * Convert grid position (column, row) to screen coordinates.
+   * Convert grid position (column, row) to game coordinates.
    * Grid is 5x3: columns 1-5 (left to right), rows 1-3 (top to bottom).
+   * Uses gameAreaWidth and gameAreaHeight for positioning within the constrained play area.
    * @param column Grid column (1-5)
    * @param row Grid row (1-3)
    * @returns Object with x and y coordinates
    */
-  gridToScreen(column: number, row: number): { x: number; y: number } {
-    const { canvasWidth, gameHeight, dpr } = this.gameConfig;
+  gridToGame(column: number, row: number): { x: number; y: number } {
+    const { gameAreaWidth, gameAreaHeight, dpr } = this.gameConfig;
 
     // Validate grid position
     if (column < 1 || column > 5 || row < 1 || row > 3) {
-      throw new Error(`Invalid grid position: column must be 1-5, row must be 1-3. Got: ${column}, ${row}`);
+      throw new Error(
+        `Invalid grid position: column must be 1-5, row must be 1-3. Got: ${column}, ${row}`
+      );
     }
 
     // Calculate x position (5 columns)
-    // Column 1 = 10%, 2 = 30%, 3 = 50%, 4 = 70%, 5 = 90% of screen width
-    const x = (column - 0.5) / 5 * canvasWidth * dpr;
+    // Column 1 = 10%, 2 = 30%, 3 = 50%, 4 = 70%, 5 = 90% of game area width
+    const x = ((column - 0.5) / 5) * gameAreaWidth * dpr;
 
     // Calculate y position (3 rows)
-    // Row 1 = 16.67%, 2 = 50%, 3 = 83.33% of screen height
-    const y = (row - 0.5) / 3 * gameHeight * dpr;
+    // Row 1 = 16.67%, 2 = 50%, 3 = 83.33% of game area height
+    const y = ((row - 0.5) / 3) * gameAreaHeight * dpr;
 
     return { x, y };
+  }
+
+  /**
+   * Convert screen coordinates to game area coordinates.
+   * Accounts for main camera viewport offset on desktop.
+   * @param screenX Screen X coordinate
+   * @param screenY Screen Y coordinate
+   * @returns Object with x and y coordinates in game area space
+   */
+  screenToGame(screenX: number, screenY: number): { x: number; y: number } {
+    const { gameAreaOffsetX, dpr } = this.gameConfig;
+
+    // Subtract camera offset to get game area coordinates
+    return {
+      x: screenX - gameAreaOffsetX * dpr,
+      y: screenY, // Y is not offset
+    };
+  }
+
+  /**
+   * Register a game object to be ignored by the UI camera.
+   * Call this for any dynamically created game objects (particles, effects, etc.)
+   * @param obj The game object to ignore
+   */
+  ignoreFromUICamera(obj: Phaser.GameObjects.GameObject): void {
+    if (this.uiCamera) {
+      this.uiCamera.ignore(obj);
+    }
+  }
+
+  /**
+   * Convert game area coordinates to screen coordinates.
+   * Use this when game objects need to interact with screen/UI elements.
+   * @param gameX Game area X coordinate
+   * @param gameY Game area Y coordinate
+   * @returns Object with x and y coordinates in screen space
+   */
+  gameToScreen(gameX: number, gameY: number): { x: number; y: number } {
+    const { gameAreaOffsetX, dpr } = this.gameConfig;
+
+    // Add camera offset to get screen coordinates
+    return {
+      x: gameX + gameAreaOffsetX * dpr,
+      y: gameY, // Y is not offset
+    };
   }
 
   spawnRandomTarget(): void {
@@ -467,10 +592,12 @@ export class GameScene extends Scene {
     const column = Math.floor(Math.random() * 5) + 1; // 1-5
     const row = Math.floor(Math.random() * 3) + 1; // 1-3
 
-    // Convert grid position to screen coordinates
-    const { x, y } = this.gridToScreen(column, row);
+    // Convert grid position to game coordinates
+    const { x, y } = this.gridToGame(column, row);
 
-    // Create new target
+    // Create new target at game area coordinates
+    // The main camera viewport is offset, so objects in game area space
+    // will appear correctly without additional adjustment
     this.currentTarget = new RandomCharacter({
       scene: this,
       x,
@@ -478,6 +605,10 @@ export class GameScene extends Scene {
       gameConfig: this.gameConfig,
       audioManager: this.audioManager!,
     });
+
+    // Make UI camera ignore all target's game objects
+    const targetObjects = this.currentTarget.getAllGameObjects();
+    targetObjects.forEach((obj) => this.ignoreFromUICamera(obj));
   }
 
   update(): void {
@@ -501,6 +632,7 @@ export class GameScene extends Scene {
 
     // HP Bar Background (white border with black fill for padding)
     this.hpBarBackground = this.add.graphics();
+    this.uiLayer!.add(this.hpBarBackground);
     this.hpBarBackground.fillStyle(0x000000, 1);
     this.hpBarBackground.lineStyle(2 * dpr, 0xffffff, 1);
     // Draw parallelogram: bottom-left, bottom-right, top-right, top-left
@@ -516,6 +648,7 @@ export class GameScene extends Scene {
 
     // HP Bar Fill (green to red gradient based on HP)
     this.hpBarFill = this.add.graphics();
+    this.uiLayer!.add(this.hpBarFill);
     this.hpBarFill.setDepth(101);
     this.updateHPBar();
 
@@ -536,6 +669,7 @@ export class GameScene extends Scene {
       )
       .setOrigin(0, 0.5)
       .setDepth(102);
+    this.uiLayer!.add(this.hpText);
 
     // Coin Counter (bottom right)
     this.coinCounterX = canvasWidth * dpr - padding;
@@ -553,107 +687,17 @@ export class GameScene extends Scene {
       })
       .setOrigin(1, 1)
       .setDepth(100);
+    this.uiLayer!.add(this.coinText);
 
     // Animated coin sprite (positioned to the left of the number)
-    const coinSpriteSize = 24 * dpr;
     const coinSpriteX = this.coinCounterX - this.coinText.width - 15 * dpr; // 8px gap + 7px extra left
     const coinSpriteY = this.coinCounterY - this.coinText.height / 2;
 
     this.coinSprite = this.add.sprite(coinSpriteX, coinSpriteY, "coin-1");
     this.coinSprite.setScale(0.0425 * dpr); // 15% smaller
     this.coinSprite.setDepth(100);
+    this.uiLayer!.add(this.coinSprite);
     this.coinSprite.play("coin-spin");
-
-    // Weapon Indicator (position and shape depends on screen width)
-    const isDesktop = window.innerWidth > 700;
-
-    const weaponWidth = 100 * dpr;
-    const weaponHeight = 25 * dpr;
-    const weaponSkew = 8 * dpr;
-
-    let weaponX: number;
-    let weaponY: number;
-
-    if (isDesktop) {
-      // Desktop: bottom center
-      weaponX = (canvasWidth * dpr) / 2 - weaponWidth / 2;
-      weaponY = bottomY - weaponHeight;
-    } else {
-      // Mobile: on top of HP bar
-      weaponX = hpBarX;
-      weaponY = hpBarY - weaponHeight - 15 * dpr; // 15px gap above HP bar
-    }
-
-    // Create weapon indicator
-    this.weaponIndicator = this.add.graphics();
-    this.weaponIndicator.setDepth(100);
-
-    // Single border (white)
-    this.weaponIndicator.lineStyle(2 * dpr, 0xffffff, 1);
-    this.weaponIndicator.beginPath();
-
-    if (isDesktop) {
-      // Desktop: parallelogram
-      this.weaponIndicator.moveTo(weaponX, weaponY + weaponHeight);
-      this.weaponIndicator.lineTo(
-        weaponX + weaponWidth,
-        weaponY + weaponHeight
-      );
-      this.weaponIndicator.lineTo(weaponX + weaponWidth + weaponSkew, weaponY);
-      this.weaponIndicator.lineTo(weaponX + weaponSkew, weaponY);
-    } else {
-      // Mobile: regular box
-      this.weaponIndicator.moveTo(weaponX, weaponY + weaponHeight);
-      this.weaponIndicator.lineTo(
-        weaponX + weaponWidth,
-        weaponY + weaponHeight
-      );
-      this.weaponIndicator.lineTo(weaponX + weaponWidth, weaponY);
-      this.weaponIndicator.lineTo(weaponX, weaponY);
-    }
-
-    this.weaponIndicator.closePath();
-    this.weaponIndicator.strokePath();
-
-    // Add double border on left side only (thicker, touching the first border)
-    const leftBorderWidth = 5 * dpr;
-    const doubleInset = leftBorderWidth - 2 * dpr; // Position to make borders touch
-    this.weaponIndicator.lineStyle(leftBorderWidth, 0xffffff, 1);
-    this.weaponIndicator.beginPath();
-
-    if (isDesktop) {
-      // Desktop: parallelogram left border
-      this.weaponIndicator.moveTo(
-        weaponX + doubleInset,
-        weaponY + weaponHeight
-      );
-      this.weaponIndicator.lineTo(weaponX + weaponSkew + doubleInset, weaponY);
-    } else {
-      // Mobile: regular box left border
-      this.weaponIndicator.moveTo(
-        weaponX + doubleInset,
-        weaponY + weaponHeight
-      );
-      this.weaponIndicator.lineTo(weaponX + doubleInset, weaponY);
-    }
-
-    this.weaponIndicator.strokePath();
-
-    // Weapon text (centered differently for box vs parallelogram)
-    const textX = isDesktop
-      ? weaponX + weaponWidth / 2 + weaponSkew / 2
-      : weaponX + weaponWidth / 2;
-    this.weaponText = this.add
-      .text(textX, weaponY + weaponHeight / 2, "Knife", {
-        fontFamily: "Jura, sans-serif",
-        fontSize: `${14 * dpr}px`,
-        color: "#ffffff",
-        fontStyle: "bold",
-        stroke: "#000000",
-        strokeThickness: 2 * dpr,
-      })
-      .setOrigin(0.5, 0.5)
-      .setDepth(101);
   }
 
   updateHPBar(): void {
@@ -832,6 +876,7 @@ export class GameScene extends Scene {
     );
     damageText.setOrigin(0.5);
     damageText.setDepth(150);
+    this.uiLayer!.add(damageText);
 
     // Animate upward and fade out
     this.tweens.add({
@@ -852,6 +897,7 @@ export class GameScene extends Scene {
     // Create gradient flash overlay at bottom of screen
     const flashGraphics = this.add.graphics();
     flashGraphics.setDepth(90);
+    this.uiLayer!.add(flashGraphics);
 
     const flashHeight = gameHeight * dpr * 0.52; // 52% of screen height (40% + 30%)
 
@@ -862,7 +908,7 @@ export class GameScene extends Scene {
 
     for (let i = 0; i < stripCount; i++) {
       const alpha = 0.6 * (i / stripCount); // 0 to 0.6 (transparent to opaque)
-      const y = (gameHeight * dpr - flashHeight) + i * stripHeight;
+      const y = gameHeight * dpr - flashHeight + i * stripHeight;
 
       flashGraphics.fillStyle(0xff0000, alpha);
       flashGraphics.fillRect(0, y, canvasWidth * dpr, stripHeight + 1); // +1 to avoid gaps
@@ -913,6 +959,7 @@ export class GameScene extends Scene {
     const coin = this.add.sprite(startX, startY, "coin-1");
     coin.setScale(0.08 * dpr);
     coin.setDepth(200);
+    this.uiLayer!.add(coin);
     coin.play("coin-spin");
 
     // Calculate arc midpoint

@@ -10,13 +10,31 @@ const gameWidth = maxGameWidth; // Game logic always uses 400px
 const canvasWidth = window.innerWidth; // Canvas follows screen width
 const gameHeight = window.innerHeight;
 
+// Calculate game area dimensions
+// Desktop: max 700px play area (up to breakpoint), centered
+// Mobile: full width play area
+const isMobile = window.innerWidth < 700; // Same breakpoint as UI
+const maxPlayAreaWidth = 700;
+const gameAreaWidth = isMobile ? canvasWidth : Math.min(canvasWidth, maxPlayAreaWidth);
+const gameAreaOffsetX = isMobile ? 0 : (canvasWidth - gameAreaWidth) / 2;
+
+// Reserve space at bottom for UI (HP bar, coins, weapon indicator)
+// UI elements take approximately 100*dpr pixels at the bottom
+const uiHeight = 100;
+const gameAreaHeight = gameHeight - uiHeight;
+const gameAreaOffsetY = 0; // Game area starts at top
+
 // Create game configuration object
 const gameConfig: GameConfig = {
     dpr,
     maxGameWidth,
     gameWidth,
     canvasWidth,
-    gameHeight
+    gameHeight,
+    gameAreaWidth,
+    gameAreaOffsetX,
+    gameAreaHeight,
+    gameAreaOffsetY
 };
 
 // Phaser game configuration

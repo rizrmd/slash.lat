@@ -15,15 +15,16 @@ export abstract class Target {
   protected scene: Phaser.Scene;
   protected container: Phaser.GameObjects.Container;
   protected image: Phaser.GameObjects.Sprite;
-  protected slashDamage: Phaser.GameObjects.Graphics;
+  public slashDamage: Phaser.GameObjects.Graphics; // Public for camera ignore
   protected imageData?: ImageData;
   protected gameConfig: GameConfig;
   protected audioManager: AudioManager;
   protected hp: number;
   protected maxHp: number;
-  protected hpBarBackground?: Phaser.GameObjects.Graphics;
-  protected hpBarFill?: Phaser.GameObjects.Graphics;
+  public hpBarBackground?: Phaser.GameObjects.Graphics; // Public for camera ignore
+  public hpBarFill?: Phaser.GameObjects.Graphics; // Public for camera ignore
   protected hpBarVisible: boolean = false;
+  private particleEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = []; // Track for cleanup
 
   constructor(config: TargetConfig) {
     this.scene = config.scene;
@@ -350,7 +351,7 @@ export abstract class Target {
     });
   }
 
-  showDamage(damage: number, hitX: number, hitY: number): void {
+  showDamage(damage: number, hitX: number, hitY: number): Phaser.GameObjects.Text {
     const dpr = this.gameConfig.dpr;
 
     // Create damage text at hit position
@@ -380,6 +381,8 @@ export abstract class Target {
         damageText.destroy();
       },
     });
+
+    return damageText;
   }
 
   getContainer(): Phaser.GameObjects.Container {
@@ -460,17 +463,27 @@ export abstract class Target {
     this.hpBarFill.fillRect(-barWidth / 2, barY, barWidth * hpPercent, barHeight);
   }
 
-  explode(onComplete?: () => void): void {
+  explode(onComplete?: () => void): Phaser.GameObjects.GameObject[] {
     const dpr = this.gameConfig.dpr;
     const containerBounds = this.container.getBounds();
+
+    // Get the center position in screen coordinates
+    // The container's position is in game area coordinates, but for display
+    // we need to account for the camera offset on desktop
+    // Since getBounds() returns world coordinates, we can use them directly
     const centerX = containerBounds.centerX;
     const centerY = containerBounds.centerY;
+
     const characterSize = Math.max(containerBounds.width, containerBounds.height);
+
+    // Track all explosion objects for camera ignore
+    const explosionObjects: Phaser.GameObjects.GameObject[] = [];
 
     // Bright flash circle - intense light burst
     const flashCircle = this.scene.add.circle(centerX, centerY, characterSize * 0.3, 0xffffff, 1);
     flashCircle.setDepth(102);
     flashCircle.setBlendMode(Phaser.BlendModes.ADD);
+    explosionObjects.push(flashCircle);
     this.scene.tweens.add({
       targets: flashCircle,
       scale: 4,
@@ -484,6 +497,7 @@ export abstract class Target {
     const glowRing = this.scene.add.circle(centerX, centerY, characterSize * 0.4, 0xffff00, 0.8);
     glowRing.setDepth(102);
     glowRing.setBlendMode(Phaser.BlendModes.ADD);
+    explosionObjects.push(glowRing);
     this.scene.tweens.add({
       targets: glowRing,
       scale: 3,
@@ -497,6 +511,7 @@ export abstract class Target {
     const outerRing = this.scene.add.circle(centerX, centerY, characterSize * 0.5, 0xffaa00, 0.5);
     outerRing.setDepth(102);
     outerRing.setBlendMode(Phaser.BlendModes.ADD);
+    explosionObjects.push(outerRing);
     this.scene.tweens.add({
       targets: outerRing,
       scale: 5,
@@ -519,6 +534,7 @@ export abstract class Target {
       gravityY: 100 * dpr,
     });
     flashEmitter.setDepth(101);
+    this.particleEmitters.push(flashEmitter);
 
     // Main fire burst - bright explosive upward movement
     const fireEmitter = this.scene.add.particles(centerX, centerY, "fire-particle", {
@@ -534,6 +550,7 @@ export abstract class Target {
       frequency: -1,
     });
     fireEmitter.setDepth(100);
+    this.particleEmitters.push(fireEmitter);
 
     // Smoke - rising from explosion center
     const smokeEmitter = this.scene.add.particles(centerX, centerY, "smoke-particle", {
@@ -548,6 +565,7 @@ export abstract class Target {
       frequency: -1,
     });
     smokeEmitter.setDepth(98);
+    this.particleEmitters.push(smokeEmitter);
 
     // Emit all particles
     flashEmitter.explode();
@@ -566,7 +584,15 @@ export abstract class Target {
       electricSprite.setScale(electricScale);
       electricSprite.setDepth(101);
       electricSprite.setBlendMode(Phaser.BlendModes.ADD);
+      explosionObjects.push(electricSprite);
       electricSprite.play("electric-leftover-anim");
+
+      // Ignore from UI camera
+      const gameScene = this.scene as any;
+      if (gameScene.ignoreFromUICamera) {
+        gameScene.ignoreFromUICamera(electricSprite);
+      }
+
       electricSprite.on("animationcomplete", () => {
         electricSprite.destroy();
       });
@@ -579,6 +605,27 @@ export abstract class Target {
       smokeEmitter.destroy();
       if (onComplete) onComplete();
     });
+
+    // Return all explosion objects so they can be ignored by UI camera
+    return explosionObjects;
+  }
+
+  /**
+   * Get all game objects created by this target that should be ignored by UI camera
+   */
+  getAllGameObjects(): Phaser.GameObjects.GameObject[] {
+    const objects: Phaser.GameObjects.GameObject[] = [
+      this.container,
+      this.slashDamage,
+    ];
+
+    if (this.hpBarBackground) objects.push(this.hpBarBackground);
+    if (this.hpBarFill) objects.push(this.hpBarFill);
+
+    // Add all tracked particle emitters
+    objects.push(...this.particleEmitters);
+
+    return objects;
   }
 
   destroy(): void {

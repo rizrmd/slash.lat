@@ -3,8 +3,8 @@ import { TrailPoint, GameConfig } from '../types';
 
 export class SlashTrail {
     private scene: Phaser.Scene;
-    private graphics: Phaser.GameObjects.Graphics;
-    private renderTexture: Phaser.GameObjects.RenderTexture;
+    public graphics: Phaser.GameObjects.Graphics; // Public for camera ignore
+    public renderTexture: Phaser.GameObjects.RenderTexture; // Public for camera ignore
     private trailPoints: TrailPoint[] = [];
     private gameConfig: GameConfig;
     private isDrawing: boolean = false;

@@ -3,7 +3,7 @@ import { SlashMark, GameConfig } from '../types';
 
 export class Sparks {
     private scene: Phaser.Scene;
-    private sparkParticles: Phaser.GameObjects.Particles.ParticleEmitter;
+    public sparkParticles: Phaser.GameObjects.Particles.ParticleEmitter; // Public for camera ignore
     private slashMarks: SlashMark[] = [];
     private sparkTimer?: Phaser.Time.TimerEvent;
     private sparkSound?: Phaser.Sound.BaseSound;
