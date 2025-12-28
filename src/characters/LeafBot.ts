@@ -37,7 +37,7 @@ export class LeafBot extends Target {
   }
 
   getMaxHP(): number {
-    return 800;
+    return 600;
   }
 
   protected onFullyVisible(): void {

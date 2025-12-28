@@ -12,15 +12,14 @@ import { GameConfig } from "../types";
 export class GameScene extends Scene {
   private orientationWarning?: Phaser.GameObjects.Text;
   private gameConfig: GameConfig;
-  private currentTarget?: Target;
+  private targets: Target[] = []; // Store all active targets
+  private hitTargetsThisSlash: Set<Target> = new Set(); // Track targets hit in current slash
   private slashTrail?: SlashTrail;
   private sparks?: Sparks;
   private audioManager?: AudioManager;
   private canStartNewSlash: boolean = true;
   private hasHitTarget: boolean = false;
   private currentSlashLength: number = 0;
-  private lastHitX: number = 0;
-  private lastHitY: number = 0;
   private uiCamera?: Phaser.Cameras.Scene2D.Camera;
   private gameLayer?: Phaser.GameObjects.Container;
   private uiLayer?: Phaser.GameObjects.Container;
@@ -116,14 +115,12 @@ export class GameScene extends Scene {
     this.uiCamera = this.cameras.add(0, 0, canvasWidth * dpr, gameHeight * dpr);
     this.uiCamera.setName("uiCamera");
 
-    // Main camera spans full canvas but is offset to center game area on desktop
-    // The game area dimensions act as coordinate reference, not clipping bounds
-    this.cameras.main.setViewport(0, 0, canvasWidth * dpr, gameHeight * dpr);
-
-    // Offset camera to center game area on desktop
-    this.cameras.main.setScroll(
-      -gameAreaOffsetX * dpr,
-      0
+    // Set main camera to show only the game area (constrained play area)
+    this.cameras.main.setViewport(
+      gameAreaOffsetX * dpr, // X position (centered on desktop)
+      0, // Y position (top)
+      gameAreaWidth * dpr, // Width (max 500px desktop, full width mobile)
+      gameAreaHeight * dpr // Height (full screen minus bottom UI space)
     );
 
     // Main camera ignores UI layer (only shows game objects not in UI layer)
@@ -139,6 +136,9 @@ export class GameScene extends Scene {
         this.uiCamera?.ignore(obj as Phaser.GameObjects.GameObject);
       }
     });
+
+    // Set background color for game area
+    this.cameras.main.setBackgroundColor("#000000");
 
     // Initialize audio manager sounds
     this.audioManager?.addSound("knife-slash");
@@ -266,6 +266,7 @@ export class GameScene extends Scene {
     this.canStartNewSlash = false;
     this.hasHitTarget = false;
     this.currentSlashLength = 0; // Reset slash length for new slash
+    this.hitTargetsThisSlash.clear(); // Clear hit targets for new slash
     this.slashTrail.startDrawing(gamePos.x, gamePos.y);
 
     // Play slash sound
@@ -283,12 +284,14 @@ export class GameScene extends Scene {
 
     if (!canContinue) return;
 
-    // Check for collision with target (pixel-perfect)
+    // Check for collision with ALL targets (pixel-perfect)
     // Only allow hits when target is at least 80% visible
-    if (!this.currentTarget || this.currentTarget.getContainer().alpha < 0.8)
-      return;
+    const visibleTargets = this.targets.filter(
+      (t) => t.getContainer().alpha >= 0.8
+    );
 
-    const containerBounds = this.currentTarget.getContainer().getBounds();
+    if (visibleTargets.length === 0) return;
+
     let hitInThisSegment = false; // Track if we hit in this movement to avoid duplicate sounds/shakes
 
     // If we have a previous point, interpolate along the line to check all pixels
@@ -309,121 +312,121 @@ export class GameScene extends Scene {
         const checkX = prevPoint.x + dx * t;
         const checkY = prevPoint.y + dy * t;
 
-        if (containerBounds.contains(checkX, checkY)) {
-          // Convert to container-relative coordinates
-          const relativeX = checkX - containerBounds.centerX;
-          const relativeY = checkY - containerBounds.centerY;
+        // Check each target for collision
+        for (const target of visibleTargets) {
+          const containerBounds = target.getContainer().getBounds();
 
-          // Check if pixel is opaque
-          if (this.currentTarget.isPixelOpaque(relativeX, relativeY)) {
-            // Only play sound and shake once per movement segment
-            if (!hitInThisSegment) {
+          if (containerBounds.contains(checkX, checkY)) {
+            // Convert to container-relative coordinates
+            const relativeX = checkX - containerBounds.centerX;
+            const relativeY = checkY - containerBounds.centerY;
+
+            // Check if pixel is opaque
+            if (target.isPixelOpaque(relativeX, relativeY)) {
+              // Only play sound and shake once per movement segment
+              if (!hitInThisSegment) {
+                this.hasHitTarget = true;
+                this.hitTargetsThisSlash.add(target); // Track this target as hit
+                this.audioManager?.play("knife-clank");
+                target.shake(dx, dy);
+                hitInThisSegment = true;
+              }
+
+              // Calculate entry/exit points once for both damage and sparks
+              const relativeStartX = checkX - containerBounds.centerX;
+              const relativeStartY = checkY - containerBounds.centerY;
+
+              const dpr = this.gameConfig.dpr;
+              const length = Math.sqrt(dx * dx + dy * dy);
+              const normalizedX = length > 0 ? dx / length : 0;
+              const normalizedY = length > 0 ? dy / length : 0;
+              const maxSearchLength = 100 * dpr;
+              const sampleStep = 2 * dpr;
+
+              let worldStartX = checkX;
+              let worldStartY = checkY;
+              let worldEndX = checkX;
+              let worldEndY = checkY;
+
+              // Search backward
+              for (
+                let dist = sampleStep;
+                dist < maxSearchLength;
+                dist += sampleStep
+              ) {
+                const testX = relativeStartX - normalizedX * dist;
+                const testY = relativeStartY - normalizedY * dist;
+                if (target.isPixelOpaque(testX, testY)) {
+                  worldStartX = testX + containerBounds.centerX;
+                  worldStartY = testY + containerBounds.centerY;
+                } else {
+                  break;
+                }
+              }
+
+              // Search forward
+              for (
+                let dist = sampleStep;
+                dist < maxSearchLength;
+                dist += sampleStep
+              ) {
+                const testX = relativeStartX + normalizedX * dist;
+                const testY = relativeStartY + normalizedY * dist;
+                if (target.isPixelOpaque(testX, testY)) {
+                  worldEndX = testX + containerBounds.centerX;
+                  worldEndY = testY + containerBounds.centerY;
+                } else {
+                  break;
+                }
+              }
+
+              // Draw slash damage using pre-calculated points (no duplicate search)
+              target.drawSlashDamage(
+                checkX,
+                checkY,
+                dx,
+                dy,
+                worldStartX,
+                worldStartY,
+                worldEndX,
+                worldEndY
+              );
+
+              // Emit sparks and store slash mark
+              this.sparks?.emitAtSlash(
+                worldStartX,
+                worldStartY,
+                worldEndX,
+                worldEndY
+              );
+              this.sparks?.addSlashMark(
+                worldStartX,
+                worldStartY,
+                worldEndX,
+                worldEndY
+              );
+
               this.hasHitTarget = true;
-              this.audioManager?.play("knife-clank");
-              this.currentTarget.shake(dx, dy);
-              hitInThisSegment = true;
-
-              // Store last hit position for damage display
-              this.lastHitX = checkX;
-              this.lastHitY = checkY;
+              this.hitTargetsThisSlash.add(target); // Track this target as hit
             }
-
-            // Calculate entry/exit points once for both damage and sparks
-            const containerBounds = this.currentTarget
-              .getContainer()
-              .getBounds();
-            const relativeStartX = checkX - containerBounds.centerX;
-            const relativeStartY = checkY - containerBounds.centerY;
-
-            const dpr = this.gameConfig.dpr;
-            const length = Math.sqrt(dx * dx + dy * dy);
-            const normalizedX = length > 0 ? dx / length : 0;
-            const normalizedY = length > 0 ? dy / length : 0;
-            const maxSearchLength = 100 * dpr;
-            const sampleStep = 2 * dpr;
-
-            let worldStartX = checkX;
-            let worldStartY = checkY;
-            let worldEndX = checkX;
-            let worldEndY = checkY;
-
-            // Search backward
-            for (
-              let dist = sampleStep;
-              dist < maxSearchLength;
-              dist += sampleStep
-            ) {
-              const testX = relativeStartX - normalizedX * dist;
-              const testY = relativeStartY - normalizedY * dist;
-              if (this.currentTarget.isPixelOpaque(testX, testY)) {
-                worldStartX = testX + containerBounds.centerX;
-                worldStartY = testY + containerBounds.centerY;
-              } else {
-                break;
-              }
-            }
-
-            // Search forward
-            for (
-              let dist = sampleStep;
-              dist < maxSearchLength;
-              dist += sampleStep
-            ) {
-              const testX = relativeStartX + normalizedX * dist;
-              const testY = relativeStartY + normalizedY * dist;
-              if (this.currentTarget.isPixelOpaque(testX, testY)) {
-                worldEndX = testX + containerBounds.centerX;
-                worldEndY = testY + containerBounds.centerY;
-              } else {
-                break;
-              }
-            }
-
-            // Draw slash damage using pre-calculated points (no duplicate search)
-            this.currentTarget.drawSlashDamage(
-              checkX,
-              checkY,
-              dx,
-              dy,
-              worldStartX,
-              worldStartY,
-              worldEndX,
-              worldEndY
-            );
-
-            // Emit sparks and store slash mark
-            this.sparks?.emitAtSlash(
-              worldStartX,
-              worldStartY,
-              worldEndX,
-              worldEndY
-            );
-            this.sparks?.addSlashMark(
-              worldStartX,
-              worldStartY,
-              worldEndX,
-              worldEndY
-            );
-
-            this.hasHitTarget = true;
           }
         }
       }
     } else {
       // First point - just check this single point
-      if (containerBounds.contains(gamePos.x, gamePos.y)) {
-        const relativeX = gamePos.x - containerBounds.centerX;
-        const relativeY = gamePos.y - containerBounds.centerY;
+      for (const target of visibleTargets) {
+        const containerBounds = target.getContainer().getBounds();
+        if (containerBounds.contains(gamePos.x, gamePos.y)) {
+          const relativeX = gamePos.x - containerBounds.centerX;
+          const relativeY = gamePos.y - containerBounds.centerY;
 
-        if (this.currentTarget.isPixelOpaque(relativeX, relativeY)) {
-          this.hasHitTarget = true;
-          this.audioManager?.play("knife-clank");
-          this.currentTarget.drawSlashDamage(gamePos.x, gamePos.y, 0, 0);
-          this.currentTarget.shake(0, 0);
-
-          // Store hit position for damage display
-          this.lastHitX = gamePos.x;
-          this.lastHitY = gamePos.y;
+          if (target.isPixelOpaque(relativeX, relativeY)) {
+            this.hasHitTarget = true;
+            this.hitTargetsThisSlash.add(target); // Track this target as hit
+            this.audioManager?.play("knife-clank");
+            target.drawSlashDamage(gamePos.x, gamePos.y, 0, 0);
+            target.shake(0, 0);
+          }
         }
       }
     }
@@ -434,70 +437,80 @@ export class GameScene extends Scene {
       this.slashTrail.endDrawing();
     }
 
-    // Show damage number if we hit the target during this slash
-    if (this.hasHitTarget && this.currentTarget) {
+    // Show damage numbers for all targets hit during this slash
+    if (this.hitTargetsThisSlash.size > 0) {
       // Calculate damage based on slash length (50-100)
       const maxSlashLength = 300 * this.gameConfig.dpr;
       const damage = Math.min(
         50 + (this.currentSlashLength / maxSlashLength) * 50,
         100
       );
-      const damageText = this.currentTarget.showDamage(
-        damage,
-        this.lastHitX,
-        this.lastHitY
-      );
-      this.ignoreFromUICamera(damageText);
 
-      // Apply damage to target
-      this.currentTarget.takeDamage(damage);
-
-      // Check if target is dead
-      if (this.currentTarget.isDead()) {
-        const dyingTarget = this.currentTarget;
-
-        // Clear currentTarget reference immediately to prevent further interaction
-        this.currentTarget = undefined;
-
-        // Clear slash marks from sparks system
-        this.sparks?.clearSlashMarks();
-
-        // Kill entrance animation tweens before fade out
-        this.tweens.killTweensOf(dyingTarget.getContainer());
-
-        // Play explosion sound
-        this.audioManager?.play("explode");
-
-        // Spawn coin animation from enemy position
-        const enemyPos = dyingTarget.getContainer().getBounds();
-        // Convert enemy position from game coordinates to screen coordinates
-        const screenEnemyPos = this.gameToScreen(
-          enemyPos.centerX,
-          enemyPos.centerY
+      // Process each hit target
+      for (const target of this.hitTargetsThisSlash) {
+        // Use target's center position for damage text (not last hit position)
+        const targetBounds = target.getContainer().getBounds();
+        const damageText = target.showDamage(
+          damage,
+          targetBounds.centerX,
+          targetBounds.centerY
         );
-        this.spawnCoinAnimation(screenEnemyPos.x, screenEnemyPos.y, 10);
+        this.ignoreFromUICamera(damageText);
 
-        // Trigger explosion animation and fade out
-        const explosionObjects = dyingTarget.explode(() => {
-          // Destroy target after explosion
-          dyingTarget.destroy();
-        });
+        // Apply damage to target
+        target.takeDamage(damage);
 
-        // Make UI camera ignore all explosion objects
-        explosionObjects.forEach((obj) => this.ignoreFromUICamera(obj));
+        // Check if target is dead
+        if (target.isDead()) {
+          // Clear slash marks from sparks system
+          this.sparks?.clearSlashMarks();
 
-        // Fade out the dying target (slower to see the explosion)
-        this.tweens.add({
-          targets: dyingTarget.getContainer(),
-          alpha: 0,
-          duration: 800,
-          ease: "Cubic.easeOut",
-        });
+          // Kill entrance animation tweens before fade out
+          this.tweens.killTweensOf(target.getContainer());
 
-        // Spawn new target after explosion is visible
-        this.time.delayedCall(600, () => {
-          this.spawnRandomTarget();
-        });
+          // Play explosion sound
+          this.audioManager?.play("explode");
+
+          // Spawn coin animation from enemy position
+          const enemyPos = target.getContainer().getBounds();
+          // Convert enemy position from game coordinates to screen coordinates
+          const screenEnemyPos = this.gameToScreen(
+            enemyPos.centerX,
+            enemyPos.centerY
+          );
+          this.spawnCoinAnimation(screenEnemyPos.x, screenEnemyPos.y, 10);
+
+          // Trigger explosion animation and fade out
+          const explosionObjects = target.explode(() => {
+            // Destroy target after explosion
+            target.destroy();
+            // Remove from targets array
+            const index = this.targets.indexOf(target);
+            if (index > -1) {
+              this.targets.splice(index, 1);
+            }
+          });
+
+          // Make UI camera ignore all explosion objects
+          explosionObjects.forEach((obj) => this.ignoreFromUICamera(obj));
+
+          // Fade out the dying target (slower to see the explosion)
+          this.tweens.add({
+            targets: target.getContainer(),
+            alpha: 0,
+            duration: 800,
+            ease: "Cubic.easeOut",
+          });
+
+          // Spawn new target after explosion is visible (only if not in test mode)
+          this.time.delayedCall(600, () => {
+            // Check if we're in test mode (all positions spawned)
+            const testMode = this.targets.length > 1;
+            if (!testMode) {
+              this.spawnRandomTarget();
+            }
+          });
+        }
       }
     }
 
@@ -523,13 +536,24 @@ export class GameScene extends Scene {
       );
     }
 
-    // Calculate x position (5 columns)
-    // Column 1 = 10%, 2 = 30%, 3 = 50%, 4 = 70%, 5 = 90% of game area width
-    const x = ((column - 0.5) / 5) * gameAreaWidth * dpr;
+    // Grid margins (padding around the grid)
+    const marginLeft = 30 * dpr;
+    const marginRight = 30 * dpr;
+    const marginTop = 30 * dpr;
+    const marginBottom = 50 * dpr;
+    const hpBarOffset = 80 * dpr; // Additional space for HP bars above top margin
 
-    // Calculate y position (3 rows)
-    // Row 1 = 16.67%, 2 = 50%, 3 = 83.33% of game area height
-    const y = ((row - 0.5) / 3) * gameAreaHeight * dpr;
+    // Calculate playable area within margins
+    const gridWidth = gameAreaWidth * dpr - marginLeft - marginRight;
+    const gridHeight = gameAreaHeight * dpr - marginTop - marginBottom - hpBarOffset;
+
+    // Calculate x position (5 columns) within the grid area
+    // Column 1 = 10%, 2 = 30%, 3 = 50%, 4 = 70%, 5 = 90% of grid width
+    const x = marginLeft + ((column - 0.5) / 5) * gridWidth;
+
+    // Calculate y position (3 rows) within the grid area
+    // Row 1 = 16.67%, 2 = 50%, 3 = 83.33% of grid height
+    const y = marginTop + hpBarOffset + ((row - 0.5) / 3) * gridHeight;
 
     return { x, y };
   }
@@ -582,8 +606,43 @@ export class GameScene extends Scene {
   spawnRandomTarget(): void {
     // Array of available character classes
     // const characterClasses = [OrangeBot, LeafBot, FlyBot];
-    const characterClasses = [LeafBot];
+    const characterClasses = [OrangeBot];
 
+    // TEST: Spawn characters in ALL grid positions at once
+    // Set to false to go back to random spawning
+    const testAllPositions = true;
+
+    if (testAllPositions) {
+      // Spawn in all grid positions
+      for (let row = 1; row <= 3; row++) {
+        for (let column = 1; column <= 5; column++) {
+          const RandomCharacter =
+            characterClasses[Math.floor(Math.random() * characterClasses.length)];
+
+          // Convert grid position to game coordinates (no manual offset needed anymore!)
+          const { x, y } = this.gridToGame(column, row);
+
+          // Create target
+          const target = new RandomCharacter({
+            scene: this,
+            x,
+            y,
+            gameConfig: this.gameConfig,
+            audioManager: this.audioManager!,
+          });
+
+          // Make UI camera ignore all target's game objects
+          const targetObjects = target.getAllGameObjects();
+          targetObjects.forEach((obj) => this.ignoreFromUICamera(obj));
+
+          // Add to targets array for hit detection
+          this.targets.push(target);
+        }
+      }
+      return;
+    }
+
+    // NORMAL: Select random character and position
     // Select random character
     const RandomCharacter =
       characterClasses[Math.floor(Math.random() * characterClasses.length)];
@@ -593,12 +652,11 @@ export class GameScene extends Scene {
     const row = Math.floor(Math.random() * 3) + 1; // 1-3
 
     // Convert grid position to game coordinates
+    // Grid system now automatically reserves space at top for HP bars
     const { x, y } = this.gridToGame(column, row);
 
     // Create new target at game area coordinates
-    // The main camera viewport is offset, so objects in game area space
-    // will appear correctly without additional adjustment
-    this.currentTarget = new RandomCharacter({
+    const target = new RandomCharacter({
       scene: this,
       x,
       y,
@@ -607,8 +665,11 @@ export class GameScene extends Scene {
     });
 
     // Make UI camera ignore all target's game objects
-    const targetObjects = this.currentTarget.getAllGameObjects();
+    const targetObjects = target.getAllGameObjects();
     targetObjects.forEach((obj) => this.ignoreFromUICamera(obj));
+
+    // Add to targets array
+    this.targets.push(target);
   }
 
   update(): void {
@@ -942,6 +1003,9 @@ export class GameScene extends Scene {
       frequency: -1, // Explode once
     });
     bloodEmitter.setDepth(95);
+
+    // Make UI camera ignore blood particles
+    this.ignoreFromUICamera(bloodEmitter);
 
     // Explode particles
     bloodEmitter.explode();

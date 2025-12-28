@@ -42,10 +42,17 @@ export abstract class Target {
     this.image = this.scene.add.sprite(0, 0, this.getAssetKey());
 
     // Scale to desired size while maintaining aspect ratio
-    const defaultSize =
-      this.gameConfig.gameWidth * this.gameConfig.dpr * (this.getSize() || 1);
+    // Use frame.height for consistent sizing across different aspect ratios
+    // Both orange-bot (513x720) and leaf-bot (754x720) have same height, so this makes them visually consistent
+    const imageHeight = this.image.frame.height;
 
-    const finalScale = (config.size || defaultSize) / this.image.width;
+    // Calculate default size based on grid width (5 columns) to prevent overlap
+    // Each character gets roughly 1/5 of grid width, scaled by the character's size multiplier
+    const gridWidth = this.gameConfig.gridWidth ?? (this.gameConfig.gameWidth * this.gameConfig.dpr);
+    const columnWidth = gridWidth / 5;
+    const defaultSize = columnWidth * (this.getSize() || 1);
+
+    const finalScale = (config.size || defaultSize) / imageHeight;
     this.image.setScale(finalScale);
 
     // Create slash damage overlay (initially hidden)
@@ -56,7 +63,7 @@ export abstract class Target {
     const dpr = this.gameConfig.dpr;
     const barWidth = this.image.width * finalScale;
     const barHeight = 6 * dpr;
-    const barY = -(this.image.height * finalScale) / 2 - 15 * dpr;
+    const barY = (this.image.height * finalScale) / 2 + 15 * dpr;
 
     this.hpBarBackground = this.scene.add.graphics();
     this.hpBarBackground.setVisible(false);
@@ -418,18 +425,10 @@ export abstract class Target {
     if (!this.hpBarFill || !this.hpBarBackground) return;
 
     const dpr = this.gameConfig.dpr;
-    const screenWidth = this.gameConfig.gameWidth * dpr;
 
-    // Scale HP bar width based on max HP (100-800 HP range)
-    // Min HP (100) = 1/5 screen width, Max HP (800) = 1/3 screen width
-    const minHp = 100;
-    const maxHp = 800;
-    const minWidthRatio = 1/5;
-    const maxWidthRatio = 1/3;
-
-    const hpRatio = Math.min(Math.max((this.maxHp - minHp) / (maxHp - minHp), 0), 1);
-    const widthRatio = minWidthRatio + (maxWidthRatio - minWidthRatio) * hpRatio;
-    const barWidth = screenWidth * widthRatio;
+    // HP bar width should be proportional to character width (80% of character width)
+    const characterWidth = this.image.displayWidth;
+    const barWidth = characterWidth * 0.8;
 
     const barHeight = 6 * dpr;
     const barY = -this.image.displayHeight / 2 - 30 * dpr;
@@ -535,6 +534,7 @@ export abstract class Target {
     });
     flashEmitter.setDepth(101);
     this.particleEmitters.push(flashEmitter);
+    explosionObjects.push(flashEmitter);
 
     // Main fire burst - bright explosive upward movement
     const fireEmitter = this.scene.add.particles(centerX, centerY, "fire-particle", {
@@ -551,6 +551,7 @@ export abstract class Target {
     });
     fireEmitter.setDepth(100);
     this.particleEmitters.push(fireEmitter);
+    explosionObjects.push(fireEmitter);
 
     // Smoke - rising from explosion center
     const smokeEmitter = this.scene.add.particles(centerX, centerY, "smoke-particle", {
@@ -566,6 +567,7 @@ export abstract class Target {
     });
     smokeEmitter.setDepth(98);
     this.particleEmitters.push(smokeEmitter);
+    explosionObjects.push(smokeEmitter);
 
     // Emit all particles
     flashEmitter.explode();

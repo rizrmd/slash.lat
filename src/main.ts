@@ -24,6 +24,16 @@ const uiHeight = 100;
 const gameAreaHeight = gameHeight - uiHeight;
 const gameAreaOffsetY = 0; // Game area starts at top
 
+// Grid dimensions for character positioning and sizing
+// Uses same margins as gridToGame() in GameScene
+const gridMarginLeft = 30 * dpr;
+const gridMarginRight = 30 * dpr;
+const gridMarginTop = 30 * dpr;
+const gridMarginBottom = 50 * dpr;
+const hpBarOffset = 80 * dpr;
+const gridWidth = gameAreaWidth * dpr - gridMarginLeft - gridMarginRight;
+const gridHeight = gameAreaHeight * dpr - gridMarginTop - gridMarginBottom - hpBarOffset;
+
 // Create game configuration object
 const gameConfig: GameConfig = {
     dpr,
@@ -34,7 +44,9 @@ const gameConfig: GameConfig = {
     gameAreaWidth,
     gameAreaOffsetX,
     gameAreaHeight,
-    gameAreaOffsetY
+    gameAreaOffsetY,
+    gridWidth,
+    gridHeight
 };
 
 // Phaser game configuration

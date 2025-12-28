@@ -23,6 +23,8 @@ export interface GameConfig {
     gameAreaOffsetX: number; // X offset to center game area on desktop
     gameAreaHeight: number;  // Actual play area height (full height minus bottom UI space)
     gameAreaOffsetY: number; // Y offset for game area (always 0 at top)
+    gridWidth?: number; // Grid width calculated from gameAreaWidth (for character sizing)
+    gridHeight?: number; // Grid height calculated from gameAreaHeight (for character sizing)
 }
 
 export interface Weapon {
