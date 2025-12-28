@@ -111,17 +111,15 @@ export class LoadingScene extends Phaser.Scene {
   }
 
   createLoadingUI(width: number, height: number, dpr: number): void {
-    // Loading logo - will display once texture is loaded
-    this.loadingLogo = this.add.image(width / 2, height / 2 - 60 * dpr, "logo");
-    this.loadingLogo.setOrigin(0.5);
-
-    // Set size once logo is loaded
+    // Create logo once it's loaded
     this.load.once("filecomplete-image-logo", () => {
-      if (this.loadingLogo) {
-        const logoWidth = 200 * dpr;
-        const logoHeight = (logoWidth * this.loadingLogo.height) / this.loadingLogo.width;
-        this.loadingLogo.setDisplaySize(logoWidth, logoHeight);
-      }
+      this.loadingLogo = this.add.image(width / 2, height / 2 - 60 * dpr, "logo");
+      this.loadingLogo.setOrigin(0.5);
+
+      // Set width to 200px, maintaining aspect ratio
+      const logoWidth = 200 * dpr;
+      const logoHeight = (logoWidth * this.loadingLogo.height) / this.loadingLogo.width;
+      this.loadingLogo.setDisplaySize(logoWidth, logoHeight);
     });
 
     // Progress box (border)
