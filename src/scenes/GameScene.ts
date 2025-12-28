@@ -428,9 +428,33 @@ export class GameScene extends Scene {
     this.canStartNewSlash = true;
   }
 
-  spawnRandomTarget(): void {
+  /**
+   * Convert grid position (column, row) to screen coordinates.
+   * Grid is 5x3: columns 1-5 (left to right), rows 1-3 (top to bottom).
+   * @param column Grid column (1-5)
+   * @param row Grid row (1-3)
+   * @returns Object with x and y coordinates
+   */
+  gridToScreen(column: number, row: number): { x: number; y: number } {
     const { canvasWidth, gameHeight, dpr } = this.gameConfig;
 
+    // Validate grid position
+    if (column < 1 || column > 5 || row < 1 || row > 3) {
+      throw new Error(`Invalid grid position: column must be 1-5, row must be 1-3. Got: ${column}, ${row}`);
+    }
+
+    // Calculate x position (5 columns)
+    // Column 1 = 10%, 2 = 30%, 3 = 50%, 4 = 70%, 5 = 90% of screen width
+    const x = (column - 0.5) / 5 * canvasWidth * dpr;
+
+    // Calculate y position (3 rows)
+    // Row 1 = 16.67%, 2 = 50%, 3 = 83.33% of screen height
+    const y = (row - 0.5) / 3 * gameHeight * dpr;
+
+    return { x, y };
+  }
+
+  spawnRandomTarget(): void {
     // Array of available character classes
     // const characterClasses = [OrangeBot, LeafBot, FlyBot];
     const characterClasses = [LeafBot];
@@ -439,11 +463,18 @@ export class GameScene extends Scene {
     const RandomCharacter =
       characterClasses[Math.floor(Math.random() * characterClasses.length)];
 
+    // Select random grid position
+    const column = Math.floor(Math.random() * 5) + 1; // 1-5
+    const row = Math.floor(Math.random() * 3) + 1; // 1-3
+
+    // Convert grid position to screen coordinates
+    const { x, y } = this.gridToScreen(column, row);
+
     // Create new target
     this.currentTarget = new RandomCharacter({
       scene: this,
-      x: (canvasWidth * dpr) / 2,
-      y: (gameHeight * dpr) / 2,
+      x,
+      y,
       gameConfig: this.gameConfig,
       audioManager: this.audioManager!,
     });
