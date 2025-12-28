@@ -82,6 +82,13 @@ export class GameScene extends Scene {
     smokeGraphics.fillCircle(6, 6, 6);
     smokeGraphics.generateTexture("smoke-particle", 12, 12);
     smokeGraphics.destroy();
+
+    // Blood particle (dark red droplet)
+    const bloodGraphics = this.make.graphics({ x: 0, y: 0 });
+    bloodGraphics.fillStyle(0x8b0000, 1);
+    bloodGraphics.fillCircle(4, 4, 4);
+    bloodGraphics.generateTexture("blood-particle", 8, 8);
+    bloodGraphics.destroy();
   }
 
   create(): void {
@@ -94,8 +101,9 @@ export class GameScene extends Scene {
     this.cameras.main.setBackgroundColor("#000");
 
     // Initialize audio manager sounds
-    this.audioManager?.addSound("slash");
-    this.audioManager?.addSound("hit");
+    this.audioManager?.addSound("knife-slash");
+    this.audioManager?.addSound("knife-clank");
+    this.audioManager?.addSound("punch-hit");
     this.audioManager?.addSound("electric-spark");
     this.audioManager?.addSound("explode");
     this.audioManager?.addSound("coin-received");
@@ -200,7 +208,7 @@ export class GameScene extends Scene {
     this.slashTrail.startDrawing(pointer.x, pointer.y);
 
     // Play slash sound
-    this.audioManager?.play("slash");
+    this.audioManager?.play("knife-slash");
   }
 
   onPointerMove(pointer: Phaser.Input.Pointer): void {
@@ -213,7 +221,8 @@ export class GameScene extends Scene {
 
     // Check for collision with target (pixel-perfect)
     // Only allow hits when target is at least 80% visible
-    if (!this.currentTarget || this.currentTarget.getContainer().alpha < 0.8) return;
+    if (!this.currentTarget || this.currentTarget.getContainer().alpha < 0.8)
+      return;
 
     const containerBounds = this.currentTarget.getContainer().getBounds();
     let hitInThisSegment = false; // Track if we hit in this movement to avoid duplicate sounds/shakes
@@ -246,7 +255,7 @@ export class GameScene extends Scene {
             // Only play sound and shake once per movement segment
             if (!hitInThisSegment) {
               this.hasHitTarget = true;
-              this.audioManager?.play("hit");
+              this.audioManager?.play("knife-clank");
               this.currentTarget.shake(dx, dy);
               hitInThisSegment = true;
 
@@ -344,7 +353,7 @@ export class GameScene extends Scene {
 
         if (this.currentTarget.isPixelOpaque(relativeX, relativeY)) {
           this.hasHitTarget = true;
-          this.audioManager?.play("hit");
+          this.audioManager?.play("knife-clank");
           this.currentTarget.drawSlashDamage(pointer.x, pointer.y, 0, 0);
           this.currentTarget.shake(0, 0);
 
@@ -423,7 +432,8 @@ export class GameScene extends Scene {
     const { canvasWidth, gameHeight, dpr } = this.gameConfig;
 
     // Array of available character classes
-    const characterClasses = [OrangeBot, LeafBot, FlyBot];
+    // const characterClasses = [OrangeBot, LeafBot, FlyBot];
+    const characterClasses = [LeafBot];
 
     // Select random character
     const RandomCharacter =
@@ -435,6 +445,7 @@ export class GameScene extends Scene {
       x: (canvasWidth * dpr) / 2,
       y: (gameHeight * dpr) / 2,
       gameConfig: this.gameConfig,
+      audioManager: this.audioManager!,
     });
   }
 
@@ -681,9 +692,187 @@ export class GameScene extends Scene {
     }
   }
 
-  takeDamage(damage: number): void {
+  takeDamage(damage: number, enemyX?: number, enemyY?: number): void {
     this.currentHP = Math.max(0, this.currentHP - damage);
     this.updateHPBar();
+
+    // Flash health bar red
+    this.flashHealthBarRed();
+
+    // Show floating damage text near health bar
+    this.showPlayerDamage(damage);
+
+    // Red gradient flash at bottom of screen
+    this.flashBottomScreenRed();
+
+    // Blood particles at enemy position
+    if (enemyX !== undefined && enemyY !== undefined) {
+      this.spawnBloodParticles(enemyX, enemyY);
+    }
+  }
+
+  flashHealthBarRed(): void {
+    if (!this.hpBarFill) return;
+
+    const { dpr } = this.gameConfig;
+    const padding = 20 * dpr;
+    const hpBarWidth = 150 * dpr;
+    const hpBarHeight = 20 * dpr;
+    const hpBarX = padding;
+    const hpBarY = this.gameConfig.gameHeight * dpr - padding - hpBarHeight;
+    const hpBarSkew = 15 * dpr;
+    const inset = 3 * dpr;
+
+    const hpPercentage = this.currentHP / this.maxHP;
+    const innerHeight = hpBarHeight - inset * 2;
+    const skewRatio = innerHeight / hpBarHeight;
+    const innerSkew = hpBarSkew * skewRatio;
+    const horizontalShift = (inset * hpBarSkew) / hpBarHeight;
+    const fillWidth = (hpBarWidth - inset * 2) * hpPercentage;
+
+    const innerX = hpBarX + inset + horizontalShift;
+    const innerY = hpBarY + inset;
+
+    // Flash red 3 times
+    let flashCount = 0;
+    const maxFlashes = 3;
+
+    const flash = () => {
+      if (!this.hpBarFill) return;
+
+      if (flashCount >= maxFlashes * 2) {
+        // Reset to white after all flashes
+        this.hpBarFill.clear();
+        this.hpBarFill.fillStyle(0xffffff, 1);
+        this.hpBarFill.beginPath();
+        this.hpBarFill.moveTo(innerX, innerY + innerHeight);
+        this.hpBarFill.lineTo(innerX + fillWidth, innerY + innerHeight);
+        this.hpBarFill.lineTo(innerX + fillWidth + innerSkew, innerY);
+        this.hpBarFill.lineTo(innerX + innerSkew, innerY);
+        this.hpBarFill.closePath();
+        this.hpBarFill.fillPath();
+        return;
+      }
+
+      const isRed = flashCount % 2 === 0;
+      const color = isRed ? 0xff0000 : 0xffffff;
+
+      this.hpBarFill.clear();
+      this.hpBarFill.fillStyle(color, 1);
+      this.hpBarFill.beginPath();
+      this.hpBarFill.moveTo(innerX, innerY + innerHeight);
+      this.hpBarFill.lineTo(innerX + fillWidth, innerY + innerHeight);
+      this.hpBarFill.lineTo(innerX + fillWidth + innerSkew, innerY);
+      this.hpBarFill.lineTo(innerX + innerSkew, innerY);
+      this.hpBarFill.closePath();
+      this.hpBarFill.fillPath();
+
+      flashCount++;
+      this.time.delayedCall(50, flash);
+    };
+
+    flash();
+  }
+
+  showPlayerDamage(damage: number): void {
+    const { dpr } = this.gameConfig;
+    const padding = 20 * dpr;
+    const hpBarWidth = 150 * dpr;
+    const hpBarHeight = 20 * dpr;
+    const hpBarX = padding;
+    const hpBarY = this.gameConfig.gameHeight * dpr - padding - hpBarHeight;
+
+    // Position damage text above the health bar
+    const damageX = hpBarX + hpBarWidth / 2;
+    const damageY = hpBarY - 30 * dpr;
+
+    const damageText = this.add.text(
+      damageX,
+      damageY,
+      `-${Math.round(damage)}`,
+      {
+        fontFamily: "Jura, sans-serif",
+        fontSize: `${24 * dpr}px`,
+        color: "#ff4444",
+        fontStyle: "bold",
+        stroke: "#000000",
+        strokeThickness: 4 * dpr,
+      }
+    );
+    damageText.setOrigin(0.5);
+    damageText.setDepth(150);
+
+    // Animate upward and fade out
+    this.tweens.add({
+      targets: damageText,
+      y: damageY - 60 * dpr,
+      alpha: 0,
+      duration: 1200,
+      ease: "Cubic.easeOut",
+      onComplete: () => {
+        damageText.destroy();
+      },
+    });
+  }
+
+  flashBottomScreenRed(): void {
+    const { canvasWidth, gameHeight, dpr } = this.gameConfig;
+
+    // Create gradient flash overlay at bottom of screen
+    const flashGraphics = this.add.graphics();
+    flashGraphics.setDepth(90);
+
+    const flashHeight = gameHeight * dpr * 0.4; // 40% of screen height
+
+    // Draw gradient (red at bottom, transparent at top)
+    // Since Phaser doesn't support gradient fills directly, we'll use multiple horizontal strips
+    const stripCount = 20;
+    const stripHeight = flashHeight / stripCount;
+
+    for (let i = 0; i < stripCount; i++) {
+      const alpha = 0.6 * (i / stripCount); // 0 to 0.6 (transparent to opaque)
+      const y = (gameHeight * dpr - flashHeight) + i * stripHeight;
+
+      flashGraphics.fillStyle(0xff0000, alpha);
+      flashGraphics.fillRect(0, y, canvasWidth * dpr, stripHeight + 1); // +1 to avoid gaps
+    }
+
+    // Animate the flash (fade out)
+    this.tweens.add({
+      targets: flashGraphics,
+      alpha: 0,
+      duration: 400,
+      ease: "Cubic.easeOut",
+      onComplete: () => {
+        flashGraphics.destroy();
+      },
+    });
+  }
+
+  spawnBloodParticles(x: number, y: number): void {
+    const dpr = this.gameConfig.dpr;
+
+    // Create blood particle emitter
+    const bloodEmitter = this.add.particles(x, y, "blood-particle", {
+      speed: { min: 60 * dpr, max: 180 * dpr },
+      angle: { min: -120, max: -60 }, // Upward cone
+      scale: { start: 1.5, end: 0.3 },
+      alpha: { start: 1, end: 0 },
+      lifespan: 800,
+      quantity: 25,
+      gravityY: 200 * dpr,
+      blendMode: Phaser.BlendModes.NORMAL,
+      frequency: -1, // Explode once
+    });
+    bloodEmitter.setDepth(95);
+
+    // Explode particles
+    bloodEmitter.explode();
+
+    // Clean up emitter after particles are done
+    this.time.delayedCall(1000, () => {
+      bloodEmitter.destroy();
+    });
   }
 
   spawnCoinAnimation(startX: number, startY: number, coinValue: number): void {

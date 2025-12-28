@@ -70,8 +70,9 @@ export class LoadingScene extends Phaser.Scene {
 
   loadGameAssets(): void {
     // Load audio assets
-    this.audioManager!.preloadAudio("slash", "src/audio/sword-slash-simple.mp3");
-    this.audioManager!.preloadAudio("hit", "src/audio/sword-slash-clank.mp3");
+    this.audioManager!.preloadAudio("knife-slash", "src/audio/knife-slash.mp3");
+    this.audioManager!.preloadAudio("knife-clank", "src/audio/knife-clank.mp3");
+    this.audioManager!.preloadAudio("punch-hit", "src/audio/punch-hit.mp3");
     this.audioManager!.preloadAudio("electric-spark", "src/audio/electric-spark.mp3");
     this.audioManager!.preloadAudio("explode", "src/audio/explode.mp3");
     this.audioManager!.preloadAudio("coin-received", "src/audio/coin-received.mp3");
@@ -79,6 +80,13 @@ export class LoadingScene extends Phaser.Scene {
     // Load character assets
     this.load.image("orange-bot", "src/image/orange-bot.webp");
     this.load.image("leaf-bot", "src/image/leaf-bot.webp");
+    // Load leaf-bot-720 as a sprite sheet (5 frames vertically, 3600px total height = 720px per frame)
+    this.load.spritesheet("leaf-bot-720", "src/image/leaf-bot-720.webp", {
+      frameWidth: 720,   // Square frames
+      frameHeight: 720,  // 3600px / 5 frames = 720px per frame
+      startFrame: 0,
+      endFrame: 4
+    });
     this.load.image("fly-bot", "src/image/fly-bot.webp");
     this.load.image("fly-bot-attack", "src/image/fly-bot-attack.webp");
 

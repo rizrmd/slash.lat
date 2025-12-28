@@ -15,8 +15,8 @@ export class OrangeBot extends Target {
 
   getAudioKeys(): { slash?: string; hit?: string; spark?: string } {
     return {
-      slash: "slash",
-      hit: "hit",
+      slash: "knife-slash",
+      hit: "knife-clank",
       spark: "electric-spark",
     };
   }

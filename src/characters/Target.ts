@@ -1,5 +1,6 @@
 import Phaser from "phaser";
 import { GameConfig } from "../types";
+import { AudioManager } from "../managers/AudioManager";
 
 export interface TargetConfig {
   scene: Phaser.Scene;
@@ -7,15 +8,17 @@ export interface TargetConfig {
   y: number;
   size?: number;
   gameConfig: GameConfig;
+  audioManager: AudioManager;
 }
 
 export abstract class Target {
   protected scene: Phaser.Scene;
   protected container: Phaser.GameObjects.Container;
-  protected image: Phaser.GameObjects.Image;
+  protected image: Phaser.GameObjects.Sprite;
   protected slashDamage: Phaser.GameObjects.Graphics;
   protected imageData?: ImageData;
   protected gameConfig: GameConfig;
+  protected audioManager: AudioManager;
   protected hp: number;
   protected maxHp: number;
   protected hpBarBackground?: Phaser.GameObjects.Graphics;
@@ -25,6 +28,7 @@ export abstract class Target {
   constructor(config: TargetConfig) {
     this.scene = config.scene;
     this.gameConfig = config.gameConfig;
+    this.audioManager = config.audioManager;
 
     // Initialize HP
     this.maxHp = this.getMaxHP();
@@ -33,8 +37,8 @@ export abstract class Target {
     // Create container
     this.container = this.scene.add.container(config.x, config.y);
 
-    // Add target image
-    this.image = this.scene.add.image(0, 0, this.getAssetKey());
+    // Add target image (as sprite to support animations)
+    this.image = this.scene.add.sprite(0, 0, this.getAssetKey());
 
     // Scale to desired size while maintaining aspect ratio
     const defaultSize =
@@ -382,7 +386,7 @@ export abstract class Target {
     return this.container;
   }
 
-  getImage(): Phaser.GameObjects.Image {
+  getImage(): Phaser.GameObjects.Sprite {
     return this.image;
   }
 
