@@ -6,7 +6,7 @@ export class LoadingScene extends Phaser.Scene {
   private gameConfig: GameConfig;
   private progressBar?: Phaser.GameObjects.Graphics;
   private progressBox?: Phaser.GameObjects.Graphics;
-  private loadingText?: Phaser.GameObjects.Text;
+  private loadingLogo?: Phaser.GameObjects.Image;
   private percentText?: Phaser.GameObjects.Text;
   private assetText?: Phaser.GameObjects.Text;
   private fontLoaded: boolean = false;
@@ -24,6 +24,9 @@ export class LoadingScene extends Phaser.Scene {
     const { dpr, canvasWidth, gameHeight } = this.gameConfig;
     const width = canvasWidth * dpr;
     const height = gameHeight;
+
+    // Load logo image
+    this.load.image("logo", "src/image/logo.webp");
 
     // Create loading UI
     this.createLoadingUI(width, height, dpr);
@@ -108,14 +111,18 @@ export class LoadingScene extends Phaser.Scene {
   }
 
   createLoadingUI(width: number, height: number, dpr: number): void {
-    // Loading text
-    this.loadingText = this.add.text(width / 2, height / 2 - 60 * dpr, "LOADING", {
-      fontFamily: "Arial, sans-serif",
-      fontSize: `${32 * dpr}px`,
-      color: "#ffffff",
-      fontStyle: "bold",
+    // Loading logo - will display once texture is loaded
+    this.loadingLogo = this.add.image(width / 2, height / 2 - 60 * dpr, "logo");
+    this.loadingLogo.setOrigin(0.5);
+
+    // Set size once logo is loaded
+    this.load.once("filecomplete-image-logo", () => {
+      if (this.loadingLogo) {
+        const logoWidth = 200 * dpr;
+        const logoHeight = (logoWidth * this.loadingLogo.height) / this.loadingLogo.width;
+        this.loadingLogo.setDisplaySize(logoWidth, logoHeight);
+      }
     });
-    this.loadingText.setOrigin(0.5);
 
     // Progress box (border)
     this.progressBox = this.add.graphics();
