@@ -7,6 +7,12 @@ import { SlashTrail } from "../effects/SlashTrail";
 import { Sparks } from "../effects/Sparks";
 import { AudioManager } from "../managers/AudioManager";
 import { WeaponManager } from "../managers/WeaponManager";
+import {
+  ProgressionManager,
+  TEST_WAVE_CONFIG,
+  TEST_CONTINUOUS_CONFIG,
+  type CharacterClass,
+} from "../managers/ProgressionManager";
 import { GameConfig } from "../types";
 
 export class GameScene extends Scene {
@@ -36,6 +42,7 @@ export class GameScene extends Scene {
   private coinCounterX: number = 0;
   private coinCounterY: number = 0;
   private weaponManager?: WeaponManager;
+  private progressionManager?: ProgressionManager;
 
   constructor(gameConfig: GameConfig) {
     super({ key: "GameScene" });
@@ -188,8 +195,37 @@ export class GameScene extends Scene {
       this.weaponManager.createWeaponIndicator();
     }
 
-    // Spawn initial random target
-    this.spawnRandomTarget();
+    // Initialize progression manager
+    // TOGGLE BETWEEN TEST MODES:
+    // - TEST_WAVE_CONFIG: Test wave-based progression (5 enemies, max 3 concurrent)
+    // - TEST_CONTINUOUS_CONFIG: Test continuous progression (increasing difficulty over time)
+    const useWaveMode = true; // Set to false to test continuous mode
+
+    this.progressionManager = new ProgressionManager(
+      this,
+      useWaveMode ? TEST_WAVE_CONFIG : TEST_CONTINUOUS_CONFIG,
+      {
+        onSpawnEnemy: (characterClass, position) => {
+          this.spawnEnemy(characterClass, position);
+        },
+        onWaveStart: (waveNumber) => {
+          console.log(`Wave ${waveNumber} started!`);
+        },
+        onWaveComplete: (waveNumber) => {
+          console.log(`Wave ${waveNumber} completed!`);
+        },
+        onAllWavesComplete: () => {
+          console.log("All waves completed!");
+        },
+        onDifficultyChange: (tierIndex) => {
+          console.log(`Difficulty increased to tier ${tierIndex + 1}`);
+        },
+      },
+      this.gameConfig
+    );
+
+    // Start the progression system
+    this.progressionManager.start();
 
     // Initialize slash trail effect
     this.slashTrail = new SlashTrail(this, this.gameConfig);
@@ -489,6 +525,9 @@ export class GameScene extends Scene {
             if (index > -1) {
               this.targets.splice(index, 1);
             }
+
+            // Notify progression manager that enemy was killed
+            this.progressionManager?.onEnemyKilled();
           });
 
           // Make UI camera ignore all explosion objects
@@ -500,15 +539,6 @@ export class GameScene extends Scene {
             alpha: 0,
             duration: 800,
             ease: "Cubic.easeOut",
-          });
-
-          // Spawn new target after explosion is visible (only if not in test mode)
-          this.time.delayedCall(600, () => {
-            // Check if we're in test mode (all positions spawned)
-            const testMode = this.targets.length > 1;
-            if (!testMode) {
-              this.spawnRandomTarget();
-            }
           });
         }
       }
@@ -603,6 +633,32 @@ export class GameScene extends Scene {
     };
   }
 
+  /**
+   * Spawn an enemy of a specific character class at a specific position
+   * Called by ProgressionManager
+   */
+  spawnEnemy(characterClass: CharacterClass, position: { x: number; y: number }): void {
+    // Create target at specified position
+    const target = new characterClass({
+      scene: this,
+      x: position.x,
+      y: position.y,
+      gameConfig: this.gameConfig,
+      audioManager: this.audioManager!,
+    });
+
+    // Make UI camera ignore all target's game objects
+    const targetObjects = target.getAllGameObjects();
+    targetObjects.forEach((obj) => this.ignoreFromUICamera(obj));
+
+    // Add to targets array
+    this.targets.push(target);
+  }
+
+  /**
+   * Legacy method - kept for reference but no longer used
+   * Progression is now handled by ProgressionManager
+   */
   spawnRandomTarget(): void {
     // Array of available character classes
     // const characterClasses = [OrangeBot, LeafBot, FlyBot];
