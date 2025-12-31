@@ -45,14 +45,22 @@ export abstract class Target {
     // Use frame.height for consistent sizing across different aspect ratios
     // Both orange-bot (513x720) and leaf-bot (754x720) have same height, so this makes them visually consistent
     const imageHeight = this.image.frame.height;
+    const imageWidth = this.image.frame.width;
 
-    // Calculate default size based on grid width (5 columns) to prevent overlap
-    // Each character gets roughly 1/5 of grid width, scaled by the character's size multiplier
+    // Calculate default size based on grid dimensions
+    // Each character spans 'w' columns and 'h' rows
     const gridWidth = this.gameConfig.gridWidth ?? (this.gameConfig.gameWidth * this.gameConfig.dpr);
-    const columnWidth = gridWidth / 5;
-    const defaultSize = columnWidth * (this.getSize() || 1);
+    const gridHeight = this.gameConfig.gridHeight ?? (this.gameConfig.gameHeight * this.gameConfig.dpr);
 
-    const finalScale = (config.size || defaultSize) / imageHeight;
+    const size = this.getSize();
+    const targetWidth = (gridWidth / 5) * size.w;
+    const targetHeight = (gridHeight / 3) * size.h;
+
+    // Calculate scale to fit within the designated grid cells while maintaining aspect ratio
+    const scaleX = targetWidth / imageWidth;
+    const scaleY = targetHeight / imageHeight;
+    const finalScale = Math.min(scaleX, scaleY);
+
     this.image.setScale(finalScale);
 
     // Create slash damage overlay (initially hidden)
@@ -650,7 +658,7 @@ export abstract class Target {
 
   // Abstract methods to be implemented by specific targets
   abstract getAssetKey(): string;
-  abstract getSize(): number;
+  abstract getSize(): { w: number; h: number };
   abstract getAudioKeys(): { slash?: string; hit?: string; spark?: string };
   abstract getMaxHP(): number;
 }

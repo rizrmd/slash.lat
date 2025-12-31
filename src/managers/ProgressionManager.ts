@@ -237,9 +237,21 @@ export class ProgressionManager {
       return;
     }
 
-    // Spawn enemy
+    // Select enemy and its size
     const characterClass = this.selectEnemyFromPool(wave.enemies);
-    const position = this.getRandomGridPosition();
+
+    // Create temp instance to get size
+    const tempTarget = new characterClass({
+      scene: this.scene,
+      x: 0,
+      y: 0,
+      gameConfig: this.gameConfig,
+      audioManager: {} as any
+    });
+    const size = tempTarget.getSize();
+    tempTarget.destroy();
+
+    const position = this.getRandomGridPositionForSize(size);
 
     this.spawnEnemy(characterClass, position);
     this.enemiesSpawnedInWave++;
@@ -340,7 +352,19 @@ export class ProgressionManager {
 
     // Spawn enemy
     const characterClass = this.selectEnemyFromPool(tier.enemies);
-    const position = this.getRandomGridPosition();
+
+    // Create temp instance to get size
+    const tempTarget = new characterClass({
+      scene: this.scene,
+      x: 0,
+      y: 0,
+      gameConfig: this.gameConfig,
+      audioManager: {} as any
+    });
+    const size = tempTarget.getSize();
+    tempTarget.destroy();
+
+    const position = this.getRandomGridPositionForSize(size);
 
     this.spawnEnemy(characterClass, position);
   }
@@ -367,9 +391,11 @@ export class ProgressionManager {
     return enemies[0].characterClass;
   }
 
-  private getRandomGridPosition(): { x: number; y: number } {
-    const column = Math.floor(Math.random() * 5) + 1; // 1-5
-    const row = Math.floor(Math.random() * 3) + 1; // 1-3
+  private getRandomGridPositionForSize(size: { w: number, h: number }): { x: number; y: number } {
+    const maxColumn = 5 - size.w + 1;
+    const maxRow = 3 - size.h + 1;
+    const column = Math.floor(Math.random() * maxColumn) + 1;
+    const row = Math.floor(Math.random() * maxRow) + 1;
 
     // Use the same grid conversion logic as GameScene
     const { gridWidth = 400, gridHeight = 600 } = this.gameConfig;
@@ -378,8 +404,12 @@ export class ProgressionManager {
     const cellWidth = gridWidth / 5;
     const cellHeight = gridHeight / 3;
 
-    const gameX = (column - 0.5) * cellWidth;
-    const gameY = (row - 0.5) * cellHeight;
+    // Calculate center of spanned cells
+    const centerColumn = column + (size.w - 1) / 2;
+    const centerRow = row + (size.h - 1) / 2;
+
+    const gameX = (centerColumn - 0.5) * cellWidth;
+    const gameY = (centerRow - 0.5) * cellHeight;
 
     return {
       x: gameX + gameAreaOffsetX * dpr,

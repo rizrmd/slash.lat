@@ -554,9 +554,11 @@ export class GameScene extends Scene {
    * Uses gameAreaWidth and gameAreaHeight for positioning within the constrained play area.
    * @param column Grid column (1-5)
    * @param row Grid row (1-3)
+   * @param width Character width in grid cells (default: 1)
+   * @param height Character height in grid cells (default: 1)
    * @returns Object with x and y coordinates
    */
-  gridToGame(column: number, row: number): { x: number; y: number } {
+  gridToGame(column: number, row: number, width: number = 1, height: number = 1): { x: number; y: number } {
     const { gameAreaWidth, gameAreaHeight, dpr } = this.gameConfig;
 
     // Validate grid position
@@ -577,13 +579,17 @@ export class GameScene extends Scene {
     const gridWidth = gameAreaWidth * dpr - marginLeft - marginRight;
     const gridHeight = gameAreaHeight * dpr - marginTop - marginBottom - hpBarOffset;
 
-    // Calculate x position (5 columns) within the grid area
-    // Column 1 = 10%, 2 = 30%, 3 = 50%, 4 = 70%, 5 = 90% of grid width
-    const x = marginLeft + ((column - 0.5) / 5) * gridWidth;
+    // Calculate x position (center of the character's grid cells)
+    // Character spans columns [column, column + width - 1]
+    // Center column = column + (width - 1) / 2
+    const centerColumn = column + (width - 1) / 2;
+    const x = marginLeft + ((centerColumn - 0.5) / 5) * gridWidth;
 
-    // Calculate y position (3 rows) within the grid area
-    // Row 1 = 16.67%, 2 = 50%, 3 = 83.33% of grid height
-    const y = marginTop + hpBarOffset + ((row - 0.5) / 3) * gridHeight;
+    // Calculate y position (center of the character's grid cells)
+    // Character spans rows [row, row + height - 1]
+    // Center row = row + (height - 1) / 2
+    const centerRow = row + (height - 1) / 2;
+    const y = marginTop + hpBarOffset + ((centerRow - 0.5) / 3) * gridHeight;
 
     return { x, y };
   }
@@ -675,8 +681,24 @@ export class GameScene extends Scene {
           const RandomCharacter =
             characterClasses[Math.floor(Math.random() * characterClasses.length)];
 
+          // Create a temporary instance to get the character size
+          const tempTarget = new RandomCharacter({
+            scene: this,
+            x: 0,
+            y: 0,
+            gameConfig: this.gameConfig,
+            audioManager: this.audioManager!,
+          });
+          const size = tempTarget.getSize();
+          tempTarget.destroy();
+
+          // Skip if character doesn't fit at this position
+          if (column + size.w - 1 > 5 || row + size.h - 1 > 3) {
+            continue;
+          }
+
           // Convert grid position to game coordinates (no manual offset needed anymore!)
-          const { x, y } = this.gridToGame(column, row);
+          const { x, y } = this.gridToGame(column, row, size.w, size.h);
 
           // Create target
           const target = new RandomCharacter({
@@ -703,13 +725,25 @@ export class GameScene extends Scene {
     const RandomCharacter =
       characterClasses[Math.floor(Math.random() * characterClasses.length)];
 
-    // Select random grid position
-    const column = Math.floor(Math.random() * 5) + 1; // 1-5
-    const row = Math.floor(Math.random() * 3) + 1; // 1-3
+    // Create a temporary instance to get the character size
+    const tempTarget = new RandomCharacter({
+      scene: this,
+      x: 0,
+      y: 0,
+      gameConfig: this.gameConfig,
+      audioManager: this.audioManager!,
+    });
+    const size = tempTarget.getSize();
+    tempTarget.destroy();
+
+    // Select random grid position (accounting for character size)
+    const maxColumn = 5 - size.w + 1;
+    const maxRow = 3 - size.h + 1;
+    const column = Math.floor(Math.random() * maxColumn) + 1;
+    const row = Math.floor(Math.random() * maxRow) + 1;
 
     // Convert grid position to game coordinates
-    // Grid system now automatically reserves space at top for HP bars
-    const { x, y } = this.gridToGame(column, row);
+    const { x, y } = this.gridToGame(column, row, size.w, size.h);
 
     // Create new target at game area coordinates
     const target = new RandomCharacter({

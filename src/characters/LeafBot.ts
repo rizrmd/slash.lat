@@ -21,7 +21,7 @@ export class LeafBot extends Target {
   }
 
   getSize() {
-    return 3 / 5;
+    return { w: 1, h: 2 };
   }
 
   getAssetKey(): string {

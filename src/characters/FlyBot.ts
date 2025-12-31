@@ -58,7 +58,7 @@ export class FlyBot extends Target {
   }
 
   getSize() {
-    return 1 / 5;
+    return { w: 1, h: 1 };
   }
 
   getAssetKey(): string {
