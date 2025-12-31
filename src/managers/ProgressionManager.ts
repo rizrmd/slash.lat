@@ -392,9 +392,17 @@ export class ProgressionManager {
   }
 
   private getRandomGridPositionForSize(size: { w: number, h: number }): { x: number; y: number } {
-    const maxColumn = 5 - size.w + 1;
+    let maxColumn = 5 - size.w + 1;
+    let minColumn = 1;
+
+    // Special case: restrict OrangeBot and LeafBot to central columns (2-4)
+    if (size.h > 1 || size.w > 1) {
+      minColumn = 2;
+      maxColumn = 4;
+    }
+
+    const column = Math.floor(Math.random() * (maxColumn - minColumn + 1)) + minColumn;
     const maxRow = 3 - size.h + 1;
-    const column = Math.floor(Math.random() * maxColumn) + 1;
     const row = Math.floor(Math.random() * maxRow) + 1;
 
     // Use the same grid conversion logic as GameScene
