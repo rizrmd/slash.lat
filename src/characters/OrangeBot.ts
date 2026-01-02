@@ -6,7 +6,7 @@ export class OrangeBot extends Target {
   }
 
   getSize() {
-    return { w: 1, h: 2 };
+    return { w: 3, h: 2 };
   }
 
   getAssetKey(): string {
