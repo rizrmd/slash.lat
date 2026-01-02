@@ -208,6 +208,7 @@ export class GameScene extends Scene {
         onSpawnEnemy: (characterClass, position) => {
           this.spawnEnemy(characterClass, position);
         },
+        gridToGame: (col, row, w, h) => this.gridToGame(col, row, w, h),
         onWaveStart: (waveNumber) => {
           console.log(`Wave ${waveNumber} started!`);
         },
@@ -558,7 +559,7 @@ export class GameScene extends Scene {
    * @param height Character height in grid cells (default: 1)
    * @returns Object with x and y coordinates
    */
-  gridToGame(column: number, row: number, width: number = 1, height: number = 1): { x: number; y: number } {
+  public gridToGame(column: number, row: number, width: number = 1, height: number = 1): { x: number; y: number } {
     const { gameAreaWidth, gameAreaHeight, dpr } = this.gameConfig;
 
     // Validate grid position

@@ -71,6 +71,7 @@ export interface ProgressionConfig {
 
 export interface ProgressionEvents {
   onSpawnEnemy: (characterClass: CharacterClass, position: { x: number; y: number }) => void;
+  gridToGame: (column: number, row: number, width: number, height: number) => { x: number; y: number };
   onWaveStart?: (waveNumber: number) => void;
   onWaveComplete?: (waveNumber: number) => void;
   onAllWavesComplete?: () => void;
@@ -392,36 +393,28 @@ export class ProgressionManager {
   }
 
   private getRandomGridPositionForSize(size: { w: number, h: number }): { x: number; y: number } {
-    let maxColumn = 5 - size.w + 1;
+    const maxColumn = 5 - size.w + 1;
     let minColumn = 1;
 
-    // Special case: restrict OrangeBot and LeafBot to central columns (2-4)
-    if (size.h > 1 || size.w > 1) {
-      minColumn = 2;
-      maxColumn = 4;
+    // Special case: restrict multi-cell bots to central columns if possible,
+    // but ensure they fit within the 5-column grid.
+    if (size.w > 1) {
+      minColumn = Math.max(1, Math.min(2, maxColumn));
     }
 
     const column = Math.floor(Math.random() * (maxColumn - minColumn + 1)) + minColumn;
     const maxRow = 3 - size.h + 1;
     const row = Math.floor(Math.random() * maxRow) + 1;
 
-    // Use the same grid conversion logic as GameScene
-    const { gridWidth = 400, gridHeight = 600 } = this.gameConfig;
+    // Use the grid conversion logic passed from GameScene
+    const { x, y } = this.events.gridToGame(column, row, size.w, size.h);
+
+    // Convert to screen coordinates
     const { dpr, gameAreaOffsetX } = this.gameConfig;
 
-    const cellWidth = gridWidth / 5;
-    const cellHeight = gridHeight / 3;
-
-    // Calculate center of spanned cells
-    const centerColumn = column + (size.w - 1) / 2;
-    const centerRow = row + (size.h - 1) / 2;
-
-    const gameX = (centerColumn - 0.5) * cellWidth;
-    const gameY = (centerRow - 0.5) * cellHeight;
-
     return {
-      x: gameX + gameAreaOffsetX * dpr,
-      y: gameY,
+      x: x + gameAreaOffsetX * dpr,
+      y: y,
     };
   }
 
