@@ -123,11 +123,22 @@ export class GameScene extends Scene {
     this.uiCamera.setName("uiCamera");
 
     // Set main camera to show only the game area (constrained play area)
+    // IMPORTANT: Viewport must match grid area to prevent character cropping
+    const gridMarginLeft = 60 * dpr;
+    const gridMarginTop = 60 * dpr;
+    const hpBarOffset = 100 * dpr;
+
     this.cameras.main.setViewport(
-      gameAreaOffsetX * dpr, // X position (centered on desktop)
-      0, // Y position (top)
-      gameAreaWidth * dpr, // Width (max 500px desktop, full width mobile)
-      gameAreaHeight * dpr // Height (full screen minus bottom UI space)
+      gameAreaOffsetX * dpr + gridMarginLeft, // X position (centered + left margin)
+      gridMarginTop + hpBarOffset, // Y position (top margin + HP bar space)
+      gameAreaWidth * dpr - gridMarginLeft * 2, // Width (minus side margins)
+      gameAreaHeight * dpr - gridMarginTop - 80 * dpr - hpBarOffset // Height (minus all margins)
+    );
+
+    // Set camera scroll to focus on grid area (prevents offset issues)
+    this.cameras.main.setScroll(
+      gameAreaOffsetX * dpr + gridMarginLeft,
+      gridMarginTop + hpBarOffset
     );
 
     // Main camera ignores UI layer (only shows game objects not in UI layer)
