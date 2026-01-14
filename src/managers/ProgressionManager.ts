@@ -99,6 +99,7 @@ export class ProgressionManager {
   // Continuous mode state
   private currentTierIndex: number = 0;
   private spawnTimer?: Phaser.Time.TimerEvent;
+  private playerActive: boolean = false; // Track player activity for dynamic spawning
 
   constructor(
     scene: Phaser.Scene,
@@ -171,6 +172,21 @@ export class ProgressionManager {
         currentTier: this.currentTierIndex + 1,
         activeEnemies: this.activeEnemyCount,
       };
+    }
+  }
+
+  /**
+   * Set player activity status for dynamic spawning
+   * Active = faster spawns, more enemies
+   * Idle = slower spawns, max 6 enemies
+   */
+  setPlayerActivity(isActive: boolean): void {
+    this.playerActive = isActive;
+
+    // Restart spawn timer with new parameters
+    if (this.config.mode === "continuous") {
+      this.spawnTimer?.remove();
+      this.startSpawnTimer();
     }
   }
 
@@ -332,8 +348,13 @@ export class ProgressionManager {
     const tier = this.getCurrentTier();
     if (!tier) return;
 
+    // Adjust spawn rate based on player activity
+    const spawnInterval = this.playerActive
+      ? tier.spawnInterval * 0.6  // 40% faster when active
+      : tier.spawnInterval * 1.5; // 50% slower when idle
+
     this.spawnTimer = this.scene.time.addEvent({
-      delay: tier.spawnInterval,
+      delay: spawnInterval,
       callback: () => this.trySpawnContinuousEnemy(),
       loop: true,
     });
@@ -346,8 +367,14 @@ export class ProgressionManager {
     const tier = this.getCurrentTier();
     if (!tier) return;
 
+    // Dynamic max concurrent based on player activity
+    // Idle: max 6, Active: use tier's maxConcurrent
+    const maxConcurrent = this.playerActive
+      ? tier.maxConcurrent  // Use tier's normal max when active (can go up to 8)
+      : Math.min(6, tier.maxConcurrent); // Cap at 6 when idle
+
     // Check if we're at max concurrent enemies
-    if (this.activeEnemyCount >= tier.maxConcurrent) {
+    if (this.activeEnemyCount >= maxConcurrent) {
       return;
     }
 
@@ -393,28 +420,50 @@ export class ProgressionManager {
   }
 
   private getRandomGridPositionForSize(size: { w: number, h: number }): { x: number; y: number } {
+    // Get grid-based position as reference point
     const maxColumn = 5 - size.w + 1;
     let minColumn = 1;
 
-    // Special case: restrict multi-cell bots to central columns if possible,
-    // but ensure they fit within the 5-column grid.
     if (size.w > 1) {
       minColumn = Math.max(1, Math.min(2, maxColumn));
     }
 
     const column = Math.floor(Math.random() * (maxColumn - minColumn + 1)) + minColumn;
     const maxRow = 3 - size.h + 1;
-    const row = Math.floor(Math.random() * maxRow) + 1;
+    const minRow = 1;
+    const row = Math.floor(Math.random() * (maxRow - minRow + 1)) + minRow;
 
     // Use the grid conversion logic passed from GameScene
     const { x, y } = this.events.gridToGame(column, row, size.w, size.h);
 
-    // Convert to screen coordinates
-    const { dpr, gameAreaOffsetX } = this.gameConfig;
+    // SMALL RANDOM OFFSET for variety while staying within safe area
+    const { isLandscape, gridWidth, gridHeight, gameAreaOffsetY, gameAreaHeight, canvasWidth } = this.gameConfig;
+
+    // Calculate safe bounds
+    const cellWidth = gridWidth / 5;
+    const cellHeight = gridHeight / 3;
+
+    // Reduced offset (±30% of cell size)
+    const maxOffsetX = cellWidth * 0.3;
+    const maxOffsetY = cellHeight * 0.3;
+
+    let randomOffsetX = (Math.random() - 0.5) * 2 * maxOffsetX;
+    let randomOffsetY = (Math.random() - 0.5) * 2 * maxOffsetY;
+
+    // Clamp to safe area bounds
+    const finalX = x + randomOffsetX;
+    const finalY = y + randomOffsetY;
+
+    // Ensure within game area (with margin for character size)
+    const margin = Math.max(cellWidth, cellHeight) * 0.5;
+    const minX = margin;
+    const maxX = canvasWidth - margin;
+    const minY = gameAreaOffsetY + margin;
+    const maxY = gameAreaOffsetY + gameAreaHeight - margin;
 
     return {
-      x: x + gameAreaOffsetX * dpr,
-      y: y,
+      x: Math.max(minX, Math.min(maxX, finalX)),
+      y: Math.max(minY, Math.min(maxY, finalY)),
     };
   }
 
@@ -429,21 +478,121 @@ export class ProgressionManager {
 // ============================================================================
 
 /**
- * Test configuration: Single wave with 5 OrangeBots
+ * LEVEL-BASED PROGRESSION: 10 Levels from Easy to Impossible
  */
-export const TEST_WAVE_CONFIG: ProgressionConfig = {
+export const LEVEL_WAVE_CONFIG: ProgressionConfig = {
   mode: "wave",
   waveConfig: {
     waves: [
+      // LEVEL 1: Tutorial - Very Easy
       {
         waveNumber: 1,
-        enemies: [
-          { characterClass: OrangeBot, weight: 1 },
-        ],
+        enemies: [{ characterClass: OrangeBot, weight: 1 }],
         totalEnemyCount: 5,
+        maxConcurrent: 2,
+        spawnInterval: 2000,
+        delayBeforeStart: 1000,
+      },
+      // LEVEL 2: Easy - More OrangeBots
+      {
+        waveNumber: 2,
+        enemies: [{ characterClass: OrangeBot, weight: 1 }],
+        totalEnemyCount: 8,
         maxConcurrent: 3,
-        spawnInterval: 2000, // Spawn every 2 seconds
-        delayBeforeStart: 1000, // 1 second delay before wave starts
+        spawnInterval: 1800,
+      },
+      // LEVEL 3: Easy-Medium - Introduce LeafBots
+      {
+        waveNumber: 3,
+        enemies: [
+          { characterClass: OrangeBot, weight: 8 },
+          { characterClass: LeafBot, weight: 2 },
+        ],
+        totalEnemyCount: 10,
+        maxConcurrent: 4,
+        spawnInterval: 1600,
+      },
+      // LEVEL 4: Medium - Mix of Orange & Leaf
+      {
+        waveNumber: 4,
+        enemies: [
+          { characterClass: OrangeBot, weight: 6 },
+          { characterClass: LeafBot, weight: 4 },
+        ],
+        totalEnemyCount: 12,
+        maxConcurrent: 4,
+        spawnInterval: 1500,
+      },
+      // LEVEL 5: Medium-Hard - More LeafBots, faster spawn
+      {
+        waveNumber: 5,
+        enemies: [
+          { characterClass: OrangeBot, weight: 5 },
+          { characterClass: LeafBot, weight: 5 },
+        ],
+        totalEnemyCount: 15,
+        maxConcurrent: 5,
+        spawnInterval: 1400,
+      },
+      // LEVEL 6: Hard - Introduce FlyBots
+      {
+        waveNumber: 6,
+        enemies: [
+          { characterClass: OrangeBot, weight: 5 },
+          { characterClass: LeafBot, weight: 3 },
+          { characterClass: FlyBot, weight: 2 },
+        ],
+        totalEnemyCount: 15,
+        maxConcurrent: 5,
+        spawnInterval: 1300,
+      },
+      // LEVEL 7: Harder - More FlyBots
+      {
+        waveNumber: 7,
+        enemies: [
+          { characterClass: OrangeBot, weight: 4 },
+          { characterClass: LeafBot, weight: 4 },
+          { characterClass: FlyBot, weight: 3 },
+        ],
+        totalEnemyCount: 18,
+        maxConcurrent: 6,
+        spawnInterval: 1200,
+      },
+      // LEVEL 8: Very Hard - All types balanced
+      {
+        waveNumber: 8,
+        enemies: [
+          { characterClass: OrangeBot, weight: 3 },
+          { characterClass: LeafBot, weight: 4 },
+          { characterClass: FlyBot, weight: 4 },
+        ],
+        totalEnemyCount: 20,
+        maxConcurrent: 6,
+        spawnInterval: 1100,
+      },
+      // LEVEL 9: Extreme - Heavy FlyBots
+      {
+        waveNumber: 9,
+        enemies: [
+          { characterClass: OrangeBot, weight: 3 },
+          { characterClass: LeafBot, weight: 3 },
+          { characterClass: FlyBot, weight: 5 },
+        ],
+        totalEnemyCount: 22,
+        maxConcurrent: 7,
+        spawnInterval: 1000,
+      },
+      // LEVEL 10: BOSS WAVE - Maximum chaos
+      {
+        waveNumber: 10,
+        enemies: [
+          { characterClass: OrangeBot, weight: 2 },
+          { characterClass: LeafBot, weight: 3 },
+          { characterClass: FlyBot, weight: 6 },
+        ],
+        totalEnemyCount: 25,
+        maxConcurrent: 8,
+        spawnInterval: 800,
       },
     ],
     delayBetweenWaves: 3000,
@@ -451,38 +600,139 @@ export const TEST_WAVE_CONFIG: ProgressionConfig = {
 };
 
 /**
- * Test configuration: Continuous mode with increasing difficulty
+ * ENDLESS MODE: Unlimited enemies for coin collection
+ * Difficulty increases over time - never ends!
  */
-export const TEST_CONTINUOUS_CONFIG: ProgressionConfig = {
+export const ENDLESS_MODE_CONFIG: ProgressionConfig = {
   mode: "continuous",
   continuousConfig: {
     tiers: [
+      // Tier 1: 0-30s - Tutorial (OrangeBots only)
       {
-        startTime: 0, // 0-20 seconds
+        startTime: 0,
         enemies: [
           { characterClass: OrangeBot, weight: 10 },
         ],
         maxConcurrent: 2,
-        spawnInterval: 3000, // Every 3 seconds
+        spawnInterval: 2500,
       },
+      // Tier 2: 30-60s - Add LeafBots
       {
-        startTime: 20, // 20-40 seconds
+        startTime: 30,
         enemies: [
           { characterClass: OrangeBot, weight: 7 },
           { characterClass: LeafBot, weight: 3 },
         ],
         maxConcurrent: 3,
-        spawnInterval: 2500, // Every 2.5 seconds
+        spawnInterval: 2200,
       },
+      // Tier 3: 60-90s - More LeafBots
       {
-        startTime: 40, // 40+ seconds
+        startTime: 60,
+        enemies: [
+          { characterClass: OrangeBot, weight: 6 },
+          { characterClass: LeafBot, weight: 4 },
+        ],
+        maxConcurrent: 4,
+        spawnInterval: 2000,
+      },
+      // Tier 4: 90-120s - Balanced mix
+      {
+        startTime: 90,
+        enemies: [
+          { characterClass: OrangeBot, weight: 5 },
+          { characterClass: LeafBot, weight: 5 },
+        ],
+        maxConcurrent: 4,
+        spawnInterval: 1800,
+      },
+      // Tier 5: 120-150s - Introduce FlyBots!
+      {
+        startTime: 120,
+        enemies: [
+          { characterClass: OrangeBot, weight: 6 },
+          { characterClass: LeafBot, weight: 3 },
+          { characterClass: FlyBot, weight: 1 },
+        ],
+        maxConcurrent: 5,
+        spawnInterval: 1600,
+      },
+      // Tier 6: 150-180s - More FlyBots
+      {
+        startTime: 150,
         enemies: [
           { characterClass: OrangeBot, weight: 5 },
           { characterClass: LeafBot, weight: 3 },
           { characterClass: FlyBot, weight: 2 },
         ],
-        maxConcurrent: 4,
-        spawnInterval: 2000, // Every 2 seconds
+        maxConcurrent: 5,
+        spawnInterval: 1500,
+      },
+      // Tier 7: 180-210s - All types increasing
+      {
+        startTime: 180,
+        enemies: [
+          { characterClass: OrangeBot, weight: 4 },
+          { characterClass: LeafBot, weight: 4 },
+          { characterClass: FlyBot, weight: 3 },
+        ],
+        maxConcurrent: 6,
+        spawnInterval: 1400,
+      },
+      // Tier 8: 210-240s - FlyBots dominating
+      {
+        startTime: 210,
+        enemies: [
+          { characterClass: OrangeBot, weight: 4 },
+          { characterClass: LeafBot, weight: 3 },
+          { characterClass: FlyBot, weight: 4 },
+        ],
+        maxConcurrent: 6,
+        spawnInterval: 1300,
+      },
+      // Tier 9: 240-270s - Very fast spawns
+      {
+        startTime: 240,
+        enemies: [
+          { characterClass: OrangeBot, weight: 3 },
+          { characterClass: LeafBot, weight: 4 },
+          { characterClass: FlyBot, weight: 4 },
+        ],
+        maxConcurrent: 7,
+        spawnInterval: 1200,
+      },
+      // Tier 10: 270-300s - Extreme mode
+      {
+        startTime: 270,
+        enemies: [
+          { characterClass: OrangeBot, weight: 3 },
+          { characterClass: LeafBot, weight: 3 },
+          { characterClass: FlyBot, weight: 5 },
+        ],
+        maxConcurrent: 7,
+        spawnInterval: 1100,
+      },
+      // Tier 11: 300-360s - MAXIMUM CHAOS
+      {
+        startTime: 300,
+        enemies: [
+          { characterClass: OrangeBot, weight: 2 },
+          { characterClass: LeafBot, weight: 3 },
+          { characterClass: FlyBot, weight: 6 },
+        ],
+        maxConcurrent: 8,
+        spawnInterval: 1000,
+      },
+      // Tier 12: 360s+ - IMPOSSIBLE (for hardcore players!)
+      {
+        startTime: 360,
+        enemies: [
+          { characterClass: OrangeBot, weight: 2 },
+          { characterClass: LeafBot, weight: 2 },
+          { characterClass: FlyBot, weight: 7 },
+        ],
+        maxConcurrent: 8,
+        spawnInterval: 900,
       },
     ],
   },
