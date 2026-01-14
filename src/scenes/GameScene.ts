@@ -569,12 +569,12 @@ export class GameScene extends Scene {
       );
     }
 
-    // Grid margins (padding around the grid)
-    const marginLeft = 30 * dpr;
-    const marginRight = 30 * dpr;
-    const marginTop = 30 * dpr;
-    const marginBottom = 50 * dpr;
-    const hpBarOffset = 80 * dpr; // Additional space for HP bars above top margin
+    // Grid margins (padding around the grid) - INCREASED to prevent cropping
+    const marginLeft = 60 * dpr;   // Increased from 30 to 60
+    const marginRight = 60 * dpr;  // Increased from 30 to 60
+    const marginTop = 60 * dpr;    // Increased from 30 to 60
+    const marginBottom = 80 * dpr; // Increased from 50 to 80
+    const hpBarOffset = 100 * dpr; // Increased from 80 to 100 - Additional space for HP bars above top margin
 
     // Calculate playable area within margins
     const gridWidth = gameAreaWidth * dpr - marginLeft - marginRight;

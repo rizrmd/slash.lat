@@ -26,11 +26,12 @@ const gameAreaOffsetY = 0; // Game area starts at top
 
 // Grid dimensions for character positioning and sizing
 // Uses same margins as gridToGame() in GameScene
-const gridMarginLeft = 30 * dpr;
-const gridMarginRight = 30 * dpr;
-const gridMarginTop = 30 * dpr;
-const gridMarginBottom = 50 * dpr;
-const hpBarOffset = 80 * dpr;
+// INCREASED MARGINS to prevent enemy cropping at screen edges
+const gridMarginLeft = 60 * dpr;   // Increased from 30 to 60
+const gridMarginRight = 60 * dpr;  // Increased from 30 to 60
+const gridMarginTop = 60 * dpr;    // Increased from 30 to 60
+const gridMarginBottom = 80 * dpr; // Increased from 50 to 80
+const hpBarOffset = 100 * dpr;     // Increased from 80 to 100
 const gridWidth = gameAreaWidth * dpr - gridMarginLeft - gridMarginRight;
 const gridHeight = gameAreaHeight * dpr - gridMarginTop - gridMarginBottom - hpBarOffset;
 
