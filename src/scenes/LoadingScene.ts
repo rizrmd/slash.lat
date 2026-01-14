@@ -99,6 +99,9 @@ export class LoadingScene extends Phaser.Scene {
     this.load.image("robot-bot", "image/characters/Robot.webp");
     this.load.image("snake-bot", "image/characters/snake-bot-1764.webp");
 
+    // Load logo for main menu and loading screen
+    this.load.image("logo", "image/characters/logo.webp");
+
     // Load coin animation frames
     for (let i = 1; i <= 6; i++) {
       this.load.image(`coin-${i}`, `image/coin/star coin rotate ${i}.webp`);
