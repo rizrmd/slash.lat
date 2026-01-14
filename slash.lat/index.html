@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+    />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <title>Slash.lat ≡ The Game</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Jura:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        -webkit-tap-highlight-color: transparent;
+      }
+      html,
+      body {
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        position: fixed;
+        background-color: #000;
+      }
+      body {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        background-color: #000;
+      }
+      #game-container {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        width: 100%;
+        height: 100%;
+      }
+      canvas {
+        display: block;
+        touch-action: none;
+      }
+      #loading-screen {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #000;
+        background-image: url('/image/loading-bg.png');
+        background-size: cover;
+        background-position: center;
+        background-repeat: no-repeat;
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        z-index: 9999;
+        transition: opacity 0.5s ease-out;
+      }
+      #loading-screen::before {
+        content: '';
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0, 0, 0, 0.4);
+        backdrop-filter: blur(4px);
+        -webkit-backdrop-filter: blur(4px);
+      }
+      #loading-screen.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      #loading-logo {
+        width: 350px;
+        height: auto;
+        margin-bottom: 40px;
+        position: relative;
+        z-index: 1;
+      }
+      #loading-progress {
+        width: 300px;
+        height: 30px;
+        border: 2px solid #ffffff;
+        border-radius: 4px;
+        overflow: hidden;
+        background-color: transparent;
+        position: relative;
+        z-index: 1;
+      }
+      #loading-progress-bar {
+        height: 100%;
+        background-color: #ffffff;
+        width: 0%;
+        transition: width 0.3s ease-out;
+      }
+      #loading-text {
+        color: #ffffff;
+        font-family: Arial, sans-serif;
+        font-size: 14px;
+        margin-top: 20px;
+        color: #cccccc;
+        position: relative;
+        z-index: 1;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="loading-screen">
+      <img id="loading-logo" src="/image/characters/logo.webp" alt="Loading..." />
+      <div id="loading-progress">
+        <div id="loading-progress-bar"></div>
+      </div>
+      <div id="loading-text">Loading...</div>
+    </div>
+    <div id="game-container"></div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

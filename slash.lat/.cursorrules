@@ -1,0 +1,48 @@
+# Cursor Rules - Cardslash (slash.lat)
+
+## Project Overview
+Cardslash is a mobile-optimized Phaser v4 game featuring slash-based interactions, pixel-perfect collision detection, and high-DPI rendering.
+
+## Tech Stack
+- **Engine**: Phaser v4 (`^4.0.0-rc.6`)
+- **Language**: TypeScript (Strict Mode, ES2022)
+- **Build Tool**: Vite (`^7.3.0`)
+- **Package Manager**: Bun
+
+## Development Standards
+
+### 1. High-DPI & Scaling (DPR)
+- **CRITICAL**: All positioning, sizing, distances, and speeds MUST be multiplied by `gameConfig.dpr`.
+- The game uses `Phaser.Scale.NONE` with manual zoom calculation `1/dpr` for crisp rendering.
+- Logic uses a 400px wide coordinate space (`maxGameWidth`), but maps to actual screen pixels via DPR.
+
+### 2. Camera & Layering System
+- **gameLayer**: Contains world objects. Ignored by `uiCamera`.
+- **uiLayer**: Contains UI elements (HP bars, coins, weapon indicators). Ignored by `main` camera.
+- **uiCamera**: A dedicated camera spanning the full canvas for UI overlay.
+- When creating new objects, ensure they are added to the correct container and ignored by the inappropriate camera using `scene.ignoreFromUICamera(obj)`.
+
+### 3. Coordinate Systems
+- **gridToGame(col, row)**: Converts 5x3 grid positions to logical game coordinates.
+- **screenToGame(x, y)**: Converts raw pointer/screen coordinates to game-area-relative coordinates (subtracts `gameAreaOffsetX`).
+- **gameToScreen(x, y)**: Converts game-area coordinates back to screen coordinates (adds `gameAreaOffsetX`).
+
+### 4. Collision Detection
+- Uses pixel-perfect collision via `ImageData` alpha checking.
+- Core method: `target.isPixelOpaque(relativeX, relativeY)`.
+- Hits involve line interpolation (every 2-4px) between pointer movement frames.
+
+### 5. Architectural Patterns
+- **Target System**: Characters extend the `Target` base class.
+- **Manager Pattern**: Use `AudioManager`, `WeaponManager`, and `ProgressionManager` for global state and orchestration.
+- **Events**: Use Phaser's built-in pointer events (`pointerdown`, `pointermove`, `pointerup`).
+
+## UI Conventions
+- Font: `Jura, sans-serif` (Google Font).
+- Colors: High contrast (Yellow `#FFD700` for coins, Green gradient for HP).
+- Mobile: Orientation handling is strictly portrait.
+
+## Build Commands
+- Dev: `bun run dev`
+- Build: `bun run build`
+- Preview: `bun run preview`
