@@ -197,38 +197,32 @@ export abstract class Target {
   }
 
   /**
-   * Start UNPREDICTABLE random movement - gabungan berbagai pola acak
-   * Gerakan benar-benar random dan sulit ditebak
-   * Delay dulu agar user sempat lihat karakter spawn dengan sempurna
+   * Start UNPREDICTABLE random movement - NO DELAY!
    */
   private startCircularWandering(): void {
-    // DELAY sebelum movement dimulai - biar karakter terlihat jelas dulu!
-    const delayBeforeMovement = 600 + Math.random() * 400; // 600-1000ms delay
+    // NO DELAY - langsung mulai movement untuk mencegah karakter diam
+    const { gridWidth, gridHeight, gameAreaWidth, gameAreaHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
 
-    this.scene.time.delayedCall(delayBeforeMovement, () => {
-      const { gridWidth, gridHeight, gameAreaWidth, gameAreaHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
+    // Pilih pola movement secara RANDOM
+    const patterns = ['random', 'circular', 'figure8', 'chaos'];
+    const pattern = patterns[Math.floor(Math.random() * patterns.length)];
 
-      // Pilih pola movement secara RANDOM
-      const patterns = ['random', 'circular', 'figure8', 'chaos'];
-      const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+    // console.log(`🎲 RANDOM movement pattern: ${pattern}`);
 
-      // console.log(`🎲 RANDOM movement pattern: ${pattern}`);
-
-      switch (pattern) {
-        case 'random':
-          this.startRandomWaypoints();
-          break;
-        case 'circular':
-          this.startCircularMotion();
-          break;
-      case 'figure8':
-        this.startFigure8Motion();
+    switch (pattern) {
+      case 'random':
+        this.startRandomWaypoints();
         break;
-      case 'chaos':
-        this.startChaosMotion();
+      case 'circular':
+        this.startCircularMotion();
         break;
-      }
-    });
+    case 'figure8':
+      this.startFigure8Motion();
+      break;
+    case 'chaos':
+      this.startChaosMotion();
+      break;
+    }
   }
 
   /**
