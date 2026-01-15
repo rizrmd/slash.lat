@@ -169,8 +169,10 @@ export abstract class Target {
         }
       },
       onComplete: () => {
-        // Start continuous breathing effect for depth/zoom
-        this.startBreathingEffect();
+        // DISABLED all breathing/movement effects to prevent lag
+        // Characters stay stationary after spawn
+        // this.startSimpleBreathingEffect();
+
         // DISABLE wandering temporarily to focus on attack effect
         // this.startRandomWandering();
         // Notify subclasses when fully visible
@@ -278,6 +280,27 @@ export abstract class Target {
     // Start the chain
     moveToNextWaypoint();
     this.breathingTween = { destroy: () => {} }; // Dummy object for cleanup
+  }
+
+  /**
+   * Start SIMPLE breathing effect - just scale in/out, no position changes
+   * Much lighter than the 50-waypoint version
+   */
+  private startSimpleBreathingEffect(): void {
+    // Get current scale as base
+    const { canvasHeight } = this.gameConfig;
+    const normalizedY = this.container.y / canvasHeight;
+    const baseScale = 0.7 + (normalizedY * 0.6);
+
+    // Simple yoyo tween: scale up and down
+    this.breathingTween = this.scene.tweens.add({
+      targets: this.container,
+      scale: baseScale * 1.05, // Increase by 5%
+      duration: 1500 + Math.random() * 1000, // 1.5-2.5 seconds
+      yoyo: true, // Go back to original scale
+      repeat: -1, // Infinite loop
+      ease: "Sine.easeInOut"
+    });
   }
 
   protected onFullyVisible(): void {

@@ -9,7 +9,7 @@ import { AudioManager } from "../managers/AudioManager";
 import { WeaponManager } from "../managers/WeaponManager";
 import {
   ProgressionManager,
-  ENDLESS_MODE_CONFIG,
+  TEST_CONTINUOUS_CONFIG,
   type CharacterClass,
 } from "../managers/ProgressionManager";
 import { GameConfig } from "../types";
@@ -254,11 +254,10 @@ export class GameScene extends Scene {
     }
 
     // Initialize progression manager
-    // ENDLESS MODE: Unlimited enemies for coin collection!
-    // Difficulty increases every 30 seconds - never ends!
+    // CONTINUOUS MODE: Unlimited enemies with increasing difficulty
     this.progressionManager = new ProgressionManager(
       this,
-      ENDLESS_MODE_CONFIG,
+      TEST_CONTINUOUS_CONFIG,
       {
         onSpawnEnemy: (characterClass, position) => {
           this.changeBackground(characterClass);
@@ -650,11 +649,12 @@ export class GameScene extends Scene {
     this.isPlayerActive = isActive;
 
     // Update progression manager with new activity status
-    if (this.progressionManager) {
-      this.progressionManager.setPlayerActivity(isActive);
-    }
+    // DISABLED: setPlayerActivity method removed from ProgressionManager
+    // if (this.progressionManager) {
+    //   this.progressionManager.setPlayerActivity(isActive);
+    // }
 
-    console.log(`Player ${isActive ? "ACTIVE" : "IDLE"} - Spawn rate ${isActive ? "INCREASED" : "DECREASED"}`);
+    console.log(`Player ${isActive ? "ACTIVE" : "IDLE"}`);
   }
 
   /**
@@ -766,6 +766,8 @@ export class GameScene extends Scene {
    * Called by ProgressionManager
    */
   spawnEnemy(characterClass: CharacterClass, position: { x: number; y: number }): void {
+    console.log(`🎯 Spawning enemy at position: x=${position.x.toFixed(0)}, y=${position.y.toFixed(0)}`);
+
     // Create target at specified position
     const target = new characterClass({
       scene: this,
