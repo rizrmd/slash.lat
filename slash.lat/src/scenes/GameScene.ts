@@ -775,6 +775,13 @@ export class GameScene extends Scene {
       audioManager: this.audioManager || {} as AudioManager,
     });
 
+    // CRITICAL: Add target container to gameLayer so it's visible in main camera
+    // This is necessary because main camera ignores uiLayer but shows game objects
+    if (this.gameLayer) {
+      this.gameLayer.add(target.getContainer());
+      console.log(`✓ Target added to gameLayer at (${position.x.toFixed(0)}, ${position.y.toFixed(0)})`);
+    }
+
     // Make UI camera ignore all target's game objects
     const targetObjects = target.getAllGameObjects();
     targetObjects.forEach((obj) => this.ignoreFromUICamera(obj));
