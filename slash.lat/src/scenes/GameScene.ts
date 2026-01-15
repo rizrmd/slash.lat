@@ -130,6 +130,7 @@ export class GameScene extends Scene {
   create(): void {
     const {
       canvasWidth,
+      canvasHeight,
       gameHeight,
       gameWidth,
       dpr,
