@@ -307,44 +307,45 @@ export abstract class Target {
    * Characters move in beautiful curved patterns
    */
   private startCircularWandering(): void {
-    const { gridWidth, gridHeight, gameAreaWidth, gameAreaHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
+    const { gridWidth, gridHeight } = this.gameConfig;
 
     const centerX = this.container.x;
     const centerY = this.container.y;
 
-    // Random radius for circular movement
-    const radius = (Math.min(gridWidth / 5, gridHeight / 3)) * (0.5 + Math.random() * 0.8);
+    // Random radius for circular movement - LARGER for more visible movement
+    const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
+    const radius = cellSize * (0.8 + Math.random() * 1.2); // 80%-200% of cell size
 
     // Random direction (clockwise or counter-clockwise)
     const clockwise = Math.random() > 0.5;
 
     // Generate arc waypoints (setengah lingkaran/penuh)
     const waypoints: Array<{ x: number; y: number }> = [];
-    const arcPoints = 12; // 12 points for smooth arc
+    const arcPoints = 16; // More points for smoother arc
 
     for (let i = 0; i < arcPoints; i++) {
-      const angle = (Math.PI * 2 * i) / arcPoints; // Full circle divided into 12 points
+      const angle = (Math.PI * 2 * i) / arcPoints;
       const x = centerX + Math.cos(angle) * radius;
       const y = centerY + Math.sin(angle) * radius;
       waypoints.push({ x, y });
     }
 
-    console.log(`🌀 CIRCULAR wandering: ${waypoints.length} arc points, radius=${radius.toFixed(0)}, clockwise=${clockwise}`);
+    console.log(`🌀 CIRCULAR wandering START: ${waypoints.length} points, radius=${radius.toFixed(0)}, clockwise=${clockwise}`);
 
     let currentWaypoint = 0;
 
     const moveToNext = () => {
       const target = waypoints[clockwise ? currentWaypoint : (waypoints.length - 1 - currentWaypoint)];
 
-      // SLOWER speed - lebih smooth dan visible
-      const duration = 1200 + Math.random() * 800; // 1.2-2.0 seconds (lebih lambat)
+      // FASTER speed - like real enemies!
+      const duration = 600 + Math.random() * 600; // 0.6-1.2 seconds (FAST!)
 
       this.scene.tweens.add({
         targets: this.container,
         x: target.x,
         y: target.y,
         duration: duration,
-        ease: "Sine.easeInOut", // Smooth easing for circular motion
+        ease: "Sine.easeInOut",
         onComplete: () => {
           currentWaypoint = (currentWaypoint + 1) % waypoints.length;
           moveToNext();
@@ -352,36 +353,31 @@ export abstract class Target {
       });
     };
 
-    // Start circular movement
+    // Start circular movement immediately
     moveToNext();
   }
 
   /**
-   * Start breathing effect - simple zoom in/out
-   * Scale animation for dynamic visual effect
+   * Start breathing effect - EXTREME zoom in/out
+   * Scale animation for dramatic visual effect
    */
   private startBreathingEffect(): void {
-    const { canvasHeight } = this.gameConfig;
-    const normalizedY = this.container.y / canvasHeight;
-    const baseScale = 0.7 + (normalizedY * 0.6);
-
     // Get CURRENT scale from container
     const currentScale = this.container.scale;
-    const targetScale = currentScale * 2.00; // 100% increase (DOUBLE SIZE!) - SANGAT VISIBLE!
+    const targetScale = currentScale * 3.00; // 200% increase (TRIPLE SIZE!) - ULTRA VISIBLE!
 
-    console.log(`💓 Breathing START: current scale=${currentScale.toFixed(2)}, target=${targetScale.toFixed(2)} (100% increase - DOUBLE!)`);
+    console.log(`💓 Breathing START: current=${currentScale.toFixed(2)}, target=${targetScale.toFixed(2)} (3x SIZE!)`);
 
     this.breathingTween = this.scene.tweens.add({
       targets: this.container,
-      scale: targetScale, // Animate TO this scale
-      duration: 1200 + Math.random() * 600, // 1.2-1.8 seconds (lebih lambat, lebih visible)
-      yoyo: true, // Go back to original scale
-      repeat: -1, // Infinite
+      scale: targetScale,
+      duration: 800 + Math.random() * 400, // 0.8-1.2 seconds (FAST breathing)
+      yoyo: true,
+      repeat: -1,
       ease: "Sine.easeInOut",
       onUpdate: () => {
-        // Log every few frames to verify it's working
-        if (Math.random() < 0.01) {
-          console.log(`🔄 Breathing anim: scale=${this.container.scale.toFixed(3)}`);
+        if (Math.random() < 0.02) {
+          console.log(`🔄 Breathing: scale=${this.container.scale.toFixed(3)}`);
         }
       }
     });
