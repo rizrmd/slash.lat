@@ -173,8 +173,7 @@ export abstract class Target {
         }
       },
       onComplete: () => {
-        // Start breathing effect AND circular wandering movement
-        this.startBreathingEffect();
+        // Start ONLY movement pattern - DISABLE breathing for performance
         this.startCircularWandering();
 
         // Notify subclasses when fully visible
@@ -233,14 +232,13 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 1: Random waypoints - ADAPTIVE BOUNDARIES!
-   * Smartphone: lebih longgar, Laptop: lebih ketat
+   * Pattern 1: Random waypoints - SAFE BOUNDARIES for laptop!
    */
   private startRandomWaypoints(): void {
     const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, isPortrait } = this.gameConfig;
 
-    // Adaptive padding - smartphone butuh lebih banyak ruang!
-    const padding = isPortrait ? 60 * dpr : 100 * dpr;
+    // EXTRA SAFE padding - laptop butuh boundary yang SANGAT aman!
+    const padding = isPortrait ? 80 * dpr : 150 * dpr;
     const minX = gameAreaOffsetX + gridMarginLeft + padding;
     const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
     const minY = gameAreaOffsetY + gridMarginTop + padding;
@@ -250,11 +248,11 @@ export abstract class Target {
       const targetX = minX + Math.random() * (maxX - minX);
       const targetY = minY + Math.random() * (maxY - minY);
 
-      // Lebih cepat dan dinamis - 0.3-0.8 seconds
-      const duration = 300 + Math.random() * 500;
+      // Slower movement for better performance
+      const duration = 500 + Math.random() * 700;
 
       // Random easing untuk variasi
-      const easings = ['Sine.easeInOut', 'Quad.easeInOut', 'Cubic.easeInOut', 'Circ.easeOut'];
+      const easings = ['Sine.easeInOut', 'Quad.easeInOut'];
       const randomEase = easings[Math.floor(Math.random() * easings.length)];
 
       this.scene.tweens.add({
@@ -280,13 +278,13 @@ export abstract class Target {
     const centerY = this.container.y;
     const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
 
-    // Adaptive radius - smartphone dapat lebih besar!
-    const minRadius = isPortrait ? cellSize * 0.5 : cellSize * 0.4;
-    const maxRadius = isPortrait ? cellSize * 1.0 : cellSize * 0.8;
+    // EXTRA SAFE radius - jauh lebih kecil untuk laptop!
+    const minRadius = isPortrait ? cellSize * 0.5 : cellSize * 0.25;
+    const maxRadius = isPortrait ? cellSize * 1.0 : cellSize * 0.5;
     const radius = minRadius + Math.random() * (maxRadius - minRadius);
 
-    // Adaptive padding - smartphone butuh lebih longgar!
-    const safePadding = isPortrait ? 80 * dpr : 120 * dpr;
+    // EXTRA SAFE padding - laptop butuh boundary yang SANGAT aman!
+    const safePadding = isPortrait ? 100 * dpr : 180 * dpr;
     const minSafeX = gameAreaOffsetX + gridMarginLeft + safePadding;
     const maxSafeX = gameAreaOffsetX + gridMarginLeft + gameWidth - safePadding;
     const minSafeY = gameAreaOffsetY + gridMarginTop + safePadding;
@@ -297,7 +295,7 @@ export abstract class Target {
     const clampedCenterY = Math.max(minSafeY + radius, Math.min(maxSafeY - radius, centerY));
 
     const clockwise = Math.random() > 0.5;
-    const arcPoints = 12 + Math.floor(Math.random() * 12); // 12-23 points (more = smoother!)
+    const arcPoints = 8 + Math.floor(Math.random() * 8); // 8-15 points (fewer = better performance!)
 
     const waypoints: Array<{ x: number; y: number }> = [];
     for (let i = 0; i < arcPoints; i++) {
@@ -308,14 +306,12 @@ export abstract class Target {
       });
     }
 
-    // console.log(`⭕ Circular: radius=${radius.toFixed(0)}, points=${arcPoints}, clockwise=${clockwise}`);
-
     let currentWaypoint = 0;
     const moveToNext = () => {
       const target = waypoints[clockwise ? currentWaypoint : (waypoints.length - 1 - currentWaypoint)];
 
-      // Lebih cepat - 0.3-0.6s per point
-      const duration = 300 + Math.random() * 300;
+      // Slower for performance
+      const duration = 600 + Math.random() * 400;
 
       this.scene.tweens.add({
         targets: this.container,
@@ -344,14 +340,14 @@ export abstract class Target {
     const centerY = this.container.y;
     const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
 
-    // Adaptive radius - smartphone dapat lebih besar!
-    const minRadius = isPortrait ? cellSize * 0.5 : cellSize * 0.35;
-    const maxRadius = isPortrait ? cellSize * 0.8 : cellSize * 0.7;
+    // EXTRA SAFE radius - jauh lebih kecil untuk laptop!
+    const minRadius = isPortrait ? cellSize * 0.5 : cellSize * 0.2;
+    const maxRadius = isPortrait ? cellSize * 0.8 : cellSize * 0.4;
     const radiusX = minRadius + Math.random() * (maxRadius - minRadius); // Horizontal
     const radiusY = (minRadius * 0.5) + Math.random() * ((maxRadius * 0.5) - (minRadius * 0.5)); // Vertical (50% of horizontal)
 
-    // Adaptive padding - smartphone butuh lebih longgar!
-    const safePadding = isPortrait ? 80 * dpr : 120 * dpr;
+    // EXTRA SAFE padding - laptop butuh boundary yang SANGAT aman!
+    const safePadding = isPortrait ? 100 * dpr : 180 * dpr;
     const minSafeX = gameAreaOffsetX + gridMarginLeft + safePadding;
     const maxSafeX = gameAreaOffsetX + gridMarginLeft + gridWidth - safePadding;
     const minSafeY = gameAreaOffsetY + gridMarginTop + safePadding;
@@ -362,7 +358,7 @@ export abstract class Target {
     const clampedCenterY = Math.max(minSafeY + radiusY, Math.min(maxSafeY - radiusY, centerY));
 
     const waypoints: Array<{ x: number; y: number }> = [];
-    const points = 20; // More points for smoother figure-8
+    const points = 12; // Fewer points for better performance
 
     for (let i = 0; i < points; i++) {
       const t = (Math.PI * 2 * i) / points;
@@ -373,14 +369,12 @@ export abstract class Target {
       });
     }
 
-    // console.log(`∞ Figure-8: radiusX=${radiusX.toFixed(0)}, radiusY=${radiusY.toFixed(0)}`);
-
     let currentWaypoint = 0;
     const moveToNext = () => {
       const target = waypoints[currentWaypoint];
 
-      // Cepat dan smooth - 0.3-0.5s per point
-      const duration = 300 + Math.random() * 200;
+      // Slower for performance
+      const duration = 500 + Math.random() * 300;
 
       this.scene.tweens.add({
         targets: this.container,
@@ -399,15 +393,13 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 4: CHAOS - SAFE CHAOS!
-   * Campuran semua pola secara acak dengan BOUNDARIES yang sangat aman
-   * ADAPTIVE - Smartphone dapat ruang gerak lebih luas!
+   * Pattern 4: CHAOS - EXTRA SAFE for laptop!
    */
   private startChaosMotion(): void {
     const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, isPortrait } = this.gameConfig;
 
-    // Adaptive padding - smartphone butuh lebih banyak ruang!
-    const padding = isPortrait ? 70 * dpr : 100 * dpr;
+    // EXTRA SAFE padding - laptop butuh boundary yang SANGAT aman!
+    const padding = isPortrait ? 90 * dpr : 160 * dpr;
     const minX = gameAreaOffsetX + gridMarginLeft + padding;
     const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
     const minY = gameAreaOffsetY + gridMarginTop + padding;
@@ -423,7 +415,7 @@ export abstract class Target {
           targets: this.container,
           x: minX + Math.random() * (maxX - minX),
           y: minY + Math.random() * (maxY - minY),
-          duration: 200 + Math.random() * 300, // Super cepat - 0.2-0.5s!
+          duration: 400 + Math.random() * 400, // Slower for performance
           ease: 'Quad.easeInOut',
           onComplete: () => moveChaos(),
         });
@@ -432,7 +424,7 @@ export abstract class Target {
         const gridWidth = gameWidth;
         const gridHeight = gameHeight;
         const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
-        const radius = cellSize * (0.25 + Math.random() * 0.3); // 25-55% dari cell size (KECIL!)
+        const radius = cellSize * (0.15 + Math.random() * 0.2); // 15-35% dari cell size (KECIL!)
         const angle = Math.random() * Math.PI * 2;
 
         // Clamp hasil movement dalam safe area!
@@ -445,7 +437,7 @@ export abstract class Target {
           targets: this.container,
           x: clampedX,
           y: clampedY,
-          duration: 200 + Math.random() * 250, // Cepat - 0.2-0.45s
+          duration: 400 + Math.random() * 300, // Slower for performance
           ease: 'Sine.easeInOut',
           onComplete: () => moveChaos(),
         });
@@ -454,7 +446,7 @@ export abstract class Target {
         const gridWidth = gameWidth;
         const gridHeight = gameHeight;
         const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
-        const dashDistance = cellSize * (0.3 + Math.random() * 0.6); // 30-90% dari cell size (KECIL!)
+        const dashDistance = cellSize * (0.2 + Math.random() * 0.3); // 20-50% dari cell size (KECIL!)
         const angle = Math.random() * Math.PI * 2;
 
         // Clamp hasil dash dalam safe area!
@@ -467,7 +459,7 @@ export abstract class Target {
           targets: this.container,
           x: clampedX,
           y: clampedY,
-          duration: 250 + Math.random() * 300, // Cepat - 0.25-0.55s
+          duration: 500 + Math.random() * 400, // Slower for performance
           ease: 'Quad.easeOut',
           onComplete: () => moveChaos(),
         });
