@@ -766,8 +766,6 @@ export class GameScene extends Scene {
    * Called by ProgressionManager
    */
   spawnEnemy(characterClass: CharacterClass, position: { x: number; y: number }): void {
-    console.log(`🎯 Spawning enemy at position: x=${position.x.toFixed(0)}, y=${position.y.toFixed(0)}`);
-
     // Create target at specified position
     const target = new characterClass({
       scene: this,

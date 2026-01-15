@@ -169,12 +169,9 @@ export abstract class Target {
         }
       },
       onComplete: () => {
-        // DISABLED all breathing/movement effects to prevent lag
-        // Characters stay stationary after spawn
-        // this.startSimpleBreathingEffect();
+        // Start LIGHT wandering movement - only 5 waypoints, not 50
+        this.startLightWandering();
 
-        // DISABLE wandering temporarily to focus on attack effect
-        // this.startRandomWandering();
         // Notify subclasses when fully visible
         this.onFullyVisible();
       },
@@ -301,6 +298,58 @@ export abstract class Target {
       repeat: -1, // Infinite loop
       ease: "Sine.easeInOut"
     });
+  }
+
+  /**
+   * Start LIGHT wandering - only 5 waypoints with longer duration
+   * Much lighter than 50-waypoint breathing effect
+   */
+  private startLightWandering(): void {
+    const { gridWidth, gridHeight } = this.gameConfig;
+
+    // Get current position as base
+    const baseX = this.container.x;
+    const baseY = this.container.y;
+
+    // Generate only 5 waypoints around current position
+    const waypoints: Array<{ x: number; y: number }> = [];
+    for (let i = 0; i < 5; i++) {
+      // Movement radius: 60% of grid cell size - VISIBLE movement
+      const moveRadius = Math.min(gridWidth / 5, gridHeight / 3) * 0.6;
+      const angle = (Math.PI * 2 * i) / 5; // Spread in circle
+      const distance = moveRadius * (0.7 + Math.random() * 0.5);
+
+      waypoints.push({
+        x: baseX + Math.cos(angle) * distance,
+        y: baseY + Math.sin(angle) * distance,
+      });
+    }
+
+    console.log(`🚶 Starting wandering: base=${baseX.toFixed(0)},${baseY.toFixed(0)}, radius=${waypoints.length} waypoints`);
+
+    // Move through waypoints with longer duration
+    let currentWaypoint = 0;
+    const moveDuration = 1500 + Math.random() * 1000; // 1.5-2.5 seconds per waypoint (faster)
+
+    const moveToNext = () => {
+      const target = waypoints[currentWaypoint];
+
+      this.scene.tweens.add({
+        targets: this.container,
+        x: target.x,
+        y: target.y,
+        duration: moveDuration,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          currentWaypoint = (currentWaypoint + 1) % waypoints.length;
+          moveToNext();
+        },
+      });
+    };
+
+    // Start wandering
+    moveToNext();
+    this.breathingTween = { destroy: () => {} }; // Dummy for cleanup
   }
 
   protected onFullyVisible(): void {

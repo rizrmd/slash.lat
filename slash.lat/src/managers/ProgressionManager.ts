@@ -335,11 +335,8 @@ export class ProgressionManager {
 
     // Check if we're at max concurrent enemies
     if (this.activeEnemyCount >= tier.maxConcurrent) {
-      console.log(`⏸️ Max enemies reached (${this.activeEnemyCount}/${tier.maxConcurrent}), skipping spawn`);
       return;
     }
-
-    console.log(`🔄 Attempting spawn (active: ${this.activeEnemyCount}/${tier.maxConcurrent})`);
 
     // Spawn enemy
     const characterClass = this.selectEnemyFromPool(tier.enemies);
@@ -392,8 +389,6 @@ export class ProgressionManager {
     // Calculate y position (center of the character's grid cells)
     const centerRow = row; // Single cell character
     const y = safeAreaOffsetY + gridMarginTop + ((centerRow - 0.5) / 3) * gridHeight;
-
-    console.log(`📍 Grid pos: col=${column}, row=${row} → x=${x.toFixed(0)}, y=${y.toFixed(0)}`);
 
     return { x, y };
   }
