@@ -169,8 +169,10 @@ export abstract class Target {
         }
       },
       onComplete: () => {
-        // Start LIGHT wandering movement - only 5 waypoints, not 50
-        this.startLightWandering();
+        console.log(`✅ Entrance complete for character at ${this.container.x.toFixed(0)}, ${this.container.y.toFixed(0)}`);
+        // Start BOTH breathing effect (zoom) AND wandering movement
+        this.startBreathingEffect();
+        this.startFastWandering();
 
         // Notify subclasses when fully visible
         this.onFullyVisible();
@@ -304,7 +306,7 @@ export abstract class Target {
    * Start FAST wandering - 20 waypoints with fast movement
    * Characters move quickly around their spawn area
    */
-  private startLightWandering(): void {
+  private startFastWandering(): void {
     const { gridWidth, gridHeight } = this.gameConfig;
 
     // Get current position as base
@@ -349,7 +351,27 @@ export abstract class Target {
 
     // Start wandering
     moveToNext();
-    this.breathingTween = { destroy: () => {} }; // Dummy for cleanup
+  }
+
+  /**
+   * Start breathing effect - simple zoom in/out
+   * Scale animation for dynamic visual effect
+   */
+  private startBreathingEffect(): void {
+    const { canvasHeight } = this.gameConfig;
+    const normalizedY = this.container.y / canvasHeight;
+    const baseScale = 0.7 + (normalizedY * 0.6);
+
+    this.breathingTween = this.scene.tweens.add({
+      targets: this.container,
+      scale: baseScale * 1.15, // Increase by 15%
+      duration: 800 + Math.random() * 400, // 0.8-1.2 seconds (FAST!)
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut"
+    });
+
+    console.log(`💓 Breathing effect started: scale ${baseScale.toFixed(2)} → ${(baseScale * 1.15).toFixed(2)}`);
   }
 
   protected onFullyVisible(): void {
