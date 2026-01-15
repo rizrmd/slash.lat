@@ -18,9 +18,6 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./slash.lat
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -31,9 +28,11 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
+        working-directory: ./slash.lat
         run: bun install
 
       - name: Build
+        working-directory: ./slash.lat
         run: bun run build
 
       - name: Setup Pages
@@ -42,7 +41,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './dist'
+          path: './slash.lat/dist'
 
   deploy:
     environment:
