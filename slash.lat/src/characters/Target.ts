@@ -173,7 +173,6 @@ export abstract class Target {
         }
       },
       onComplete: () => {
-        console.log(`✅ Entrance complete for character at ${this.container.x.toFixed(0)}, ${this.container.y.toFixed(0)}`);
         // Start breathing effect AND circular wandering movement
         this.startBreathingEffect();
         this.startCircularWandering();
@@ -214,7 +213,7 @@ export abstract class Target {
       const patterns = ['random', 'circular', 'figure8', 'chaos'];
       const pattern = patterns[Math.floor(Math.random() * patterns.length)];
 
-      console.log(`🎲 RANDOM movement pattern: ${pattern}`);
+      // console.log(`🎲 RANDOM movement pattern: ${pattern}`);
 
       switch (pattern) {
         case 'random':
@@ -309,7 +308,7 @@ export abstract class Target {
       });
     }
 
-    console.log(`⭕ Circular: radius=${radius.toFixed(0)}, points=${arcPoints}, clockwise=${clockwise}`);
+    // console.log(`⭕ Circular: radius=${radius.toFixed(0)}, points=${arcPoints}, clockwise=${clockwise}`);
 
     let currentWaypoint = 0;
     const moveToNext = () => {
@@ -374,7 +373,7 @@ export abstract class Target {
       });
     }
 
-    console.log(`∞ Figure-8: radiusX=${radiusX.toFixed(0)}, radiusY=${radiusY.toFixed(0)}`);
+    // console.log(`∞ Figure-8: radiusX=${radiusX.toFixed(0)}, radiusY=${radiusY.toFixed(0)}`);
 
     let currentWaypoint = 0;
     const moveToNext = () => {
@@ -479,28 +478,21 @@ export abstract class Target {
   }
 
   /**
-   * Start breathing effect - EXTREME zoom in/out
-   * Scale animation for dramatic visual effect
+   * Start breathing effect - SUBTLE zoom in/out
+   * Optimized for performance - much smaller scale changes
    */
   private startBreathingEffect(): void {
     // Get CURRENT scale from container
     const currentScale = this.container.scale;
-    const targetScale = currentScale * 3.00; // 200% increase (TRIPLE SIZE!) - ULTRA VISIBLE!
-
-    console.log(`💓 Breathing START: current=${currentScale.toFixed(2)}, target=${targetScale.toFixed(2)} (3x SIZE!)`);
+    const targetScale = currentScale * 1.08; // Only 8% increase - SUBTLE for better performance
 
     this.breathingTween = this.scene.tweens.add({
       targets: this.container,
       scale: targetScale,
-      duration: 800 + Math.random() * 400, // 0.8-1.2 seconds (FAST breathing)
+      duration: 2000 + Math.random() * 1000, // 2-3 seconds (slower = smoother)
       yoyo: true,
       repeat: -1,
-      ease: "Sine.easeInOut",
-      onUpdate: () => {
-        if (Math.random() < 0.02) {
-          console.log(`🔄 Breathing: scale=${this.container.scale.toFixed(3)}`);
-        }
-      }
+      ease: "Sine.easeInOut"
     });
   }
 
@@ -1037,7 +1029,7 @@ export abstract class Target {
 
     // 30% chance to change movement pattern
     if (Math.random() < 0.3) {
-      console.log(`⚡ Reacting to damage! Changing movement...`);
+      // console.log(`⚡ Reacting to damage! Changing movement...`);
       this.changeMovementPattern();
     }
   }
@@ -1052,7 +1044,7 @@ export abstract class Target {
 
     // 60% chance to change movement pattern (fear reaction!)
     if (Math.random() < 0.6) {
-      console.log(`💀 Teammate killed! Changing movement in fear!`);
+      // console.log(`💀 Teammate killed! Changing movement in fear!`);
       this.changeMovementPattern();
     }
   }
