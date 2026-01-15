@@ -367,14 +367,14 @@ export abstract class Target {
 
     // Get CURRENT scale from container
     const currentScale = this.container.scale;
-    const targetScale = currentScale * 1.50; // 50% increase from CURRENT scale (MUCH MORE VISIBLE!)
+    const targetScale = currentScale * 1.80; // 80% increase from CURRENT scale (VERY VISIBLE!)
 
-    console.log(`💓 Breathing START: current scale=${currentScale.toFixed(2)}, target=${targetScale.toFixed(2)} (50% increase)`);
+    console.log(`💓 Breathing START: current scale=${currentScale.toFixed(2)}, target=${targetScale.toFixed(2)} (80% increase)`);
 
     this.breathingTween = this.scene.tweens.add({
       targets: this.container,
       scale: targetScale, // Animate TO this scale
-      duration: 800 + Math.random() * 400, // 0.8-1.2 seconds (slower, more visible)
+      duration: 1000 + Math.random() * 400, // 1.0-1.4 seconds (slower, more visible)
       yoyo: true, // Go back to original scale
       repeat: -1, // Infinite
       ease: "Sine.easeInOut",

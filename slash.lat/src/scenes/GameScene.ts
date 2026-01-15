@@ -33,6 +33,8 @@ export class GameScene extends Scene {
   private maxHP: number = 1000;
   private currentHP: number = 1000;
   private coins: number = 0;
+  private unlockedBackgrounds: string[] = ['bg-orange']; // Start with default background
+  private selectedBackground: string = 'bg-orange';
   private hpBarBackground?: Phaser.GameObjects.Graphics;
   private hpBarFill?: Phaser.GameObjects.Graphics;
   private hpText?: Phaser.GameObjects.Text;
@@ -135,6 +137,9 @@ export class GameScene extends Scene {
       scale,
     } = this.gameConfig;
 
+    // Load saved progress (coins, unlocked backgrounds)
+    this.loadProgress();
+
     // Create separate layers for game objects and UI
     this.gameLayer = this.add.container(0, 0);
     this.uiLayer = this.add.container(0, 0);
@@ -144,7 +149,8 @@ export class GameScene extends Scene {
     const fullCanvasWidth = this.cameras.main.width;
     const fullCanvasHeight = this.cameras.main.height;
 
-    this.gameBackground = this.add.image(fullCanvasWidth / 2, fullCanvasHeight / 2, "game-bg");
+    // Use saved background selection
+    this.gameBackground = this.add.image(fullCanvasWidth / 2, fullCanvasHeight / 2, this.selectedBackground);
     this.gameBackground.setOrigin(0.5);
 
     // FULLSCREEN - cover entire visible canvas area (like CSS background-size: cover)
@@ -977,8 +983,14 @@ export class GameScene extends Scene {
     this.coinSprite = this.add.sprite(coinSpriteX, coinSpriteY, "coin-1");
     this.coinSprite.setScale(0.0425 * dpr); // 15% smaller
     this.coinSprite.setDepth(100);
+    this.coinSprite.setInteractive({ useHandCursor: true }); // Make clickable
     this.uiLayer!.add(this.coinSprite);
     this.coinSprite.play("coin-spin");
+
+    // Add click handler to cycle backgrounds
+    this.coinSprite.on('pointerdown', () => {
+      this.cycleBackground();
+    });
   }
 
   updateHPBar(): void {
@@ -1046,6 +1058,259 @@ export class GameScene extends Scene {
         this.coinSprite.setX(coinSpriteX);
       }
     }
+
+    // Save total coins to localStorage
+    this.saveProgress();
+
+    // Check for background unlock at 10,000 coins
+    this.checkBackgroundUnlock();
+  }
+
+  /**
+   * Save game progress to localStorage
+   */
+  saveProgress(): void {
+    try {
+      const saveData = {
+        totalCoins: this.coins,
+        unlockedBackgrounds: this.unlockedBackgrounds,
+        selectedBackground: this.selectedBackground,
+      };
+      localStorage.setItem('slashlat_save', JSON.stringify(saveData));
+    } catch (e) {
+      console.warn('Failed to save progress:', e);
+    }
+  }
+
+  /**
+   * Load game progress from localStorage
+   */
+  loadProgress(): void {
+    try {
+      const saved = localStorage.getItem('slashlat_save');
+      if (saved) {
+        const saveData = JSON.parse(saved);
+        this.coins = saveData.totalCoins || 0;
+        this.unlockedBackgrounds = saveData.unlockedBackgrounds || ['bg-orange'];
+        this.selectedBackground = saveData.selectedBackground || 'bg-orange';
+
+        // Update UI
+        if (this.coinText) {
+          this.coinText.setText(`${this.coins}`);
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load progress:', e);
+    }
+  }
+
+  /**
+   * Check if player has unlocked new backgrounds
+   */
+  checkBackgroundUnlock(): void {
+    const BACKGROUND_UNLOCK_THRESHOLD = 10000;
+
+    // Check each background type
+    const backgrounds = ['bg-leaf', 'bg-fly'];
+    const backgroundNames = ['bg-leaf', 'bg-fly'];
+
+    backgrounds.forEach((bg, index) => {
+      if (!this.unlockedBackgrounds.includes(bg) && this.coins >= BACKGROUND_UNLOCK_THRESHOLD) {
+        this.unlockedBackgrounds.push(bg);
+
+        // Show unlock notification
+        this.showUnlockNotification(backgroundNames[index]);
+
+        // Play special sound
+        this.audioManager?.play('coin-received');
+      }
+    });
+  }
+
+  /**
+   * Show unlock notification for new background
+   */
+  showUnlockNotification(backgroundName: string): void {
+    const { canvasWidth, canvasHeight } = this.gameConfig;
+
+    // Create notification container
+    const notification = this.add.container(canvasWidth / 2, canvasHeight / 2);
+
+    // Background panel
+    const panel = this.add.rectangle(0, 0, 400, 200, 0x000000, 0.8);
+    panel.setStrokeStyle(4, 0xffd700);
+    notification.add(panel);
+
+    // Title
+    const title = this.add.text(0, -50, '🎉 BACKGROUND UNLOCKED!', {
+      fontSize: '32px',
+      color: '#ffd700',
+      fontStyle: 'bold',
+      stroke: '#000',
+      strokeThickness: 4,
+    });
+    title.setOrigin(0.5);
+    notification.add(title);
+
+    // Background name
+    const name = this.add.text(0, 0, `${backgroundName.toUpperCase()}`, {
+      fontSize: '24px',
+      color: '#ffffff',
+      stroke: '#000',
+      strokeThickness: 3,
+    });
+    name.setOrigin(0.5);
+    notification.add(name);
+
+    // Instruction
+    const instruction = this.add.text(0, 50, 'Click coin icon to change background', {
+      fontSize: '16px',
+      color: '#aaaaaa',
+    });
+    instruction.setOrigin(0.5);
+    notification.add(instruction);
+
+    notification.setDepth(10000);
+
+    // Animate in
+    this.tweens.add({
+      targets: notification,
+      scale: { from: 0, to: 1 },
+      alpha: { from: 0, to: 1 },
+      duration: 500,
+      ease: 'Back.easeOut',
+    });
+
+    // Auto hide after 4 seconds
+    this.time.delayedCall(4000, () => {
+      this.tweens.add({
+        targets: notification,
+        scale: 0,
+        alpha: 0,
+        duration: 300,
+        ease: 'Back.easeIn',
+        onComplete: () => {
+          notification.destroy();
+        },
+      });
+    });
+  }
+
+  /**
+   * Toggle background selection
+   */
+  cycleBackground(): void {
+    if (this.unlockedBackgrounds.length <= 1) {
+      // Only default background, show locked message
+      this.showLockedMessage();
+      return;
+    }
+
+    // Cycle to next unlocked background
+    const currentIndex = this.unlockedBackgrounds.indexOf(this.selectedBackground);
+    const nextIndex = (currentIndex + 1) % this.unlockedBackgrounds.length;
+    this.selectedBackground = this.unlockedBackgrounds[nextIndex];
+
+    // Apply new background
+    this.changeBackgroundByName(this.selectedBackground);
+
+    // Save selection
+    this.saveProgress();
+
+    // Show notification
+    this.showBackgroundChangeNotification(this.selectedBackground);
+  }
+
+  /**
+   * Show message when backgrounds are still locked
+   */
+  showLockedMessage(): void {
+    const { canvasWidth, canvasHeight } = this.gameConfig;
+
+    const notification = this.add.text(canvasWidth / 2, canvasHeight / 2 - 100, `Collect ${10000} coins to unlock new backgrounds!`, {
+      fontSize: '24px',
+      color: '#ff6666',
+      fontStyle: 'bold',
+      stroke: '#000',
+      strokeThickness: 4,
+      backgroundColor: '#000000',
+      padding: { x: 20, y: 10 },
+    });
+    notification.setOrigin(0.5);
+    notification.setDepth(10000);
+
+    this.tweens.add({
+      targets: notification,
+      alpha: { from: 1, to: 0 },
+      duration: 2000,
+      delay: 1500,
+      onComplete: () => {
+        notification.destroy();
+      },
+    });
+  }
+
+  /**
+   * Show notification when background changes
+   */
+  showBackgroundChangeNotification(backgroundName: string): void {
+    const { canvasWidth, canvasHeight } = this.gameConfig;
+
+    const notification = this.add.text(canvasWidth / 2, canvasHeight / 2 - 100, `Background: ${backgroundName.toUpperCase()}`, {
+      fontSize: '28px',
+      color: '#66ff66',
+      fontStyle: 'bold',
+      stroke: '#000',
+      strokeThickness: 4,
+      backgroundColor: '#000000',
+      padding: { x: 20, y: 10 },
+    });
+    notification.setOrigin(0.5);
+    notification.setDepth(10000);
+
+    this.tweens.add({
+      targets: notification,
+      alpha: { from: 1, to: 0 },
+      y: canvasHeight / 2 - 150,
+      duration: 1500,
+      delay: 1000,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        notification.destroy();
+      },
+    });
+  }
+
+  /**
+   * Change background by name (for player selection)
+   */
+  changeBackgroundByName(backgroundKey: string): void {
+    if (!this.gameBackground) return;
+
+    // Update texture
+    this.gameBackground.setTexture(backgroundKey);
+
+    // Recalculate cover mode
+    const { canvasWidth, canvasHeight } = this.gameConfig;
+    const bgWidth = this.gameBackground.width;
+    const bgHeight = this.gameBackground.height;
+    const bgAspectRatio = bgWidth / bgHeight;
+    const screenAspectRatio = canvasWidth / canvasHeight;
+
+    let displayWidth: number;
+    let displayHeight: number;
+
+    if (bgAspectRatio > screenAspectRatio) {
+      displayHeight = canvasHeight;
+      displayWidth = canvasHeight * bgAspectRatio;
+    } else {
+      displayWidth = canvasWidth;
+      displayHeight = canvasWidth / bgAspectRatio;
+    }
+
+    this.gameBackground.setDisplaySize(displayWidth, displayHeight);
+
+    console.log(`🎨 Background changed to: ${backgroundKey}`);
   }
 
   takeDamage(damage: number, enemyX?: number, enemyY?: number): void {
