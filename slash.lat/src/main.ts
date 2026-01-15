@@ -85,9 +85,9 @@ const safeAreaOffsetY = (gameHeight - safeAreaHeight) / 2;
 /**
  * UI AREA
  * Reserve space at bottom for UI (HP bar, coins, weapon indicator)
- * UI height scales with DPR for consistent sizing across devices
+ * UI height in game coordinate space (no DPR multiplication needed)
  */
-const uiHeight = (isLandscape ? 120 : 150) * dpr; // Scaled for DPR
+const uiHeight = isLandscape ? 120 : 150;
 const gameAreaHeight = safeAreaHeight - uiHeight;
 const gameAreaWidth = safeAreaWidth;
 const gameAreaOffsetX = safeAreaOffsetX;
@@ -97,12 +97,12 @@ const gameAreaOffsetY = safeAreaOffsetY;
  * GRID SYSTEM
  * 5x3 grid for character positioning, with margins within safe area
  * Grid margins prevent character cropping at edges
- * Margins scale with DPR for consistent sizing across devices
+ * Margins are in game coordinate space (no DPR multiplication needed)
  */
-const gridMarginLeft = (isLandscape ? 100 : 80) * dpr;
-const gridMarginRight = (isLandscape ? 100 : 80) * dpr;
-const gridMarginTop = (isLandscape ? 100 : 80) * dpr;
-const gridMarginBottom = (isLandscape ? 100 : 80) * dpr;
+const gridMarginLeft = isLandscape ? 100 : 80;
+const gridMarginRight = isLandscape ? 100 : 80;
+const gridMarginTop = isLandscape ? 100 : 80;
+const gridMarginBottom = isLandscape ? 100 : 80;
 const gridWidth = gameAreaWidth - gridMarginLeft - gridMarginRight;
 const gridHeight = gameAreaHeight - gridMarginTop - gridMarginBottom;
 
