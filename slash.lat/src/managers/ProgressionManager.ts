@@ -437,7 +437,7 @@ export class ProgressionManager {
     const { x, y } = this.events.gridToGame(column, row, size.w, size.h);
 
     // SMALL RANDOM OFFSET for variety while staying within safe area
-    const { gridWidth, gridHeight } = this.gameConfig;
+    const { isLandscape, gridWidth, gridHeight, gameAreaOffsetY, gameAreaHeight, canvasWidth } = this.gameConfig;
 
     // Calculate safe bounds
     const cellWidth = gridWidth / 5;
@@ -450,10 +450,20 @@ export class ProgressionManager {
     let randomOffsetX = (Math.random() - 0.5) * 2 * maxOffsetX;
     let randomOffsetY = (Math.random() - 0.5) * 2 * maxOffsetY;
 
-    // gridToGame positions are already correct, just add small offset for variety
+    // Clamp to safe area bounds
+    const finalX = x + randomOffsetX;
+    const finalY = y + randomOffsetY;
+
+    // Ensure within game area (with margin for character size)
+    const margin = Math.max(cellWidth, cellHeight) * 0.5;
+    const minX = margin;
+    const maxX = canvasWidth - margin;
+    const minY = gameAreaOffsetY + margin;
+    const maxY = gameAreaOffsetY + gameAreaHeight - margin;
+
     return {
-      x: x + randomOffsetX,
-      y: y + randomOffsetY,
+      x: Math.max(minX, Math.min(maxX, finalX)),
+      y: Math.max(minY, Math.min(maxY, finalY)),
     };
   }
 

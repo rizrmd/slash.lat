@@ -7,6 +7,11 @@ import { SlashTrail } from "../effects/SlashTrail";
 import { Sparks } from "../effects/Sparks";
 import { AudioManager } from "../managers/AudioManager";
 import { WeaponManager } from "../managers/WeaponManager";
+import {
+  ProgressionManager,
+  ENDLESS_MODE_CONFIG,
+  type CharacterClass,
+} from "../managers/ProgressionManager";
 import { GameConfig } from "../types";
 
 export class GameScene extends Scene {
@@ -36,6 +41,12 @@ export class GameScene extends Scene {
   private coinCounterX: number = 0;
   private coinCounterY: number = 0;
   private weaponManager?: WeaponManager;
+  private progressionManager?: ProgressionManager;
+  private gameBackground?: Phaser.GameObjects.Image;
+  private currentBackgroundKey?: string; // Track current background to prevent unnecessary changes
+  private lastActivityTime: number = Date.now(); // Track player activity
+  private isPlayerActive: boolean = false; // Is player currently active?
+  private activityCheckEvent?: Phaser.Time.TimerEvent;
 
   constructor(gameConfig: GameConfig) {
     super({ key: "GameScene" });
@@ -44,11 +55,32 @@ export class GameScene extends Scene {
 
   init(): void {
     // Get audio manager from registry (loaded in LoadingScene)
-    this.audioManager = this.registry.get("managers").audioManager;
+    const managers = this.registry.get("managers");
+    if (managers && managers.audioManager) {
+      this.audioManager = managers.audioManager;
+    }
   }
 
   preload(): void {
     const dpr = this.gameConfig.dpr;
+
+    // Load game backgrounds for each character
+    console.log("Loading backgrounds...");
+    this.load.image("bg-orange", "image/bg-orange.png");
+    this.load.image("bg-leaf", "image/bg-leaf.png");
+    this.load.image("bg-fly", "image/bg-fly.png");
+
+    // Default galaxy background (fallback)
+    this.load.image("game-bg", "image/game-bg.png");
+
+    // Log when loading is complete
+    this.load.on("complete", () => {
+      console.log("✓ All backgrounds loaded successfully!");
+      console.log("  - bg-orange:", this.textures.exists("bg-orange"));
+      console.log("  - bg-leaf:", this.textures.exists("bg-leaf"));
+      console.log("  - bg-fly:", this.textures.exists("bg-fly"));
+      console.log("  - game-bg:", this.textures.exists("game-bg"));
+    });
 
     // Create a simple particle texture for sparks
     const graphics = this.make.graphics({ x: 0, y: 0 });
@@ -96,46 +128,16 @@ export class GameScene extends Scene {
   create(): void {
     const {
       canvasWidth,
-      gameHeight,
+      canvasHeight,
       gameWidth,
+      gameHeight,
       dpr,
-      gameAreaWidth,
-      gameAreaOffsetX,
-      gameAreaHeight,
+      scale,
     } = this.gameConfig;
-
-    // Check orientation on mobile
-    this.checkOrientation();
 
     // Create separate layers for game objects and UI
     this.gameLayer = this.add.container(0, 0);
     this.uiLayer = this.add.container(0, 0);
-
-    // Create separate UI camera that spans full canvas (for UI elements)
-    this.uiCamera = this.cameras.add(0, 0, canvasWidth * dpr, gameHeight * dpr);
-    this.uiCamera.setName("uiCamera");
-
-    // Set main camera to show only the game area (constrained play area)
-    this.cameras.main.setViewport(
-      gameAreaOffsetX * dpr, // X position (centered on desktop)
-      0, // Y position (top)
-      gameAreaWidth * dpr, // Width (max 500px desktop, full width mobile)
-      gameAreaHeight * dpr // Height (full screen minus bottom UI space)
-    );
-
-    // Main camera ignores UI layer (only shows game objects not in UI layer)
-    this.cameras.main.ignore(this.uiLayer);
-
-    // UI camera only shows UI layer (ignores everything else)
-    this.uiCamera.ignore(this.gameLayer);
-
-    // Make UI camera ignore all existing game objects
-    const gameObjects = this.children.getAll();
-    gameObjects.forEach((obj) => {
-      if (obj !== this.uiLayer && obj !== this.gameLayer) {
-        this.uiCamera?.ignore(obj as Phaser.GameObjects.GameObject);
-      }
-    });
 
     // Add background image FIRST - position at center of full canvas
     // Use the actual canvas dimensions (not game world dimensions)
@@ -172,6 +174,30 @@ export class GameScene extends Scene {
     console.log(`✓ Fullscreen background: ${displayWidth.toFixed(0)}x${displayHeight.toFixed(0)} (screen: ${fullCanvasWidth.toFixed(0)}x${fullCanvasHeight.toFixed(0)})`);
 
     this.currentBackgroundKey = "game-bg";
+
+    // Create separate UI camera that spans full canvas (for UI elements)
+    this.uiCamera = this.cameras.add(0, 0, canvasWidth * dpr, canvasHeight * dpr);
+    this.uiCamera.setName("uiCamera");
+
+    // CRITICAL FIX: Set camera bounds to match GAME WORLD size
+    // This ensures the camera knows the full extent of the game world
+    this.cameras.main.setBounds(0, 0, gameWidth, gameHeight);
+    this.cameras.main.setViewport(0, 0, canvasWidth * dpr, canvasHeight * dpr);
+    this.cameras.main.setBackgroundColor("#000000");
+
+    // Main camera ignores UI layer (only shows game objects not in UI layer)
+    this.cameras.main.ignore(this.uiLayer);
+
+    // UI camera only shows UI layer (ignores everything else)
+    this.uiCamera.ignore(this.gameLayer);
+
+    // Make UI camera ignore all existing game objects
+    const gameObjects = this.children.getAll();
+    gameObjects.forEach((obj) => {
+      if (obj !== this.uiLayer && obj !== this.gameLayer) {
+        this.uiCamera?.ignore(obj as Phaser.GameObjects.GameObject);
+      }
+    });
 
     // IMPORTANT: Make sure background IS ignored by UI camera (only shown in main camera)
     if (this.gameBackground) {
@@ -227,8 +253,27 @@ export class GameScene extends Scene {
       this.weaponManager.createWeaponIndicator();
     }
 
-    // Spawn initial random target
-    this.spawnRandomTarget();
+    // Initialize progression manager
+    // ENDLESS MODE: Unlimited enemies for coin collection!
+    // Difficulty increases every 30 seconds - never ends!
+    this.progressionManager = new ProgressionManager(
+      this,
+      ENDLESS_MODE_CONFIG,
+      {
+        onSpawnEnemy: (characterClass, position) => {
+          this.changeBackground(characterClass);
+          this.spawnEnemy(characterClass, position);
+        },
+        gridToGame: (col, row, w, h) => this.gridToGame(col, row, w, h),
+        onDifficultyChange: (tierIndex) => {
+          console.log(`⚠️ DIFFICULTY INCREASED! Tier ${tierIndex + 1}/12`);
+        },
+      },
+      this.gameConfig
+    );
+
+    // Start the progression system
+    this.progressionManager.start();
 
     // Initialize slash trail effect
     this.slashTrail = new SlashTrail(this, this.gameConfig);
@@ -240,6 +285,9 @@ export class GameScene extends Scene {
     this.sparks = new Sparks(this, this.gameConfig, "electric-spark");
     // Make UI camera ignore spark particles (particle emitters are managed as GameObjects)
     this.ignoreFromUICamera(this.sparks.sparkParticles);
+
+    // Start activity checker - runs every 1 second
+    this.startActivityChecker();
 
     // Set up input handlers
     this.input.on("pointerdown", this.onPointerDown, this);
@@ -254,48 +302,16 @@ export class GameScene extends Scene {
   }
 
   checkOrientation(): void {
-    const { canvasWidth, gameHeight, dpr } = this.gameConfig;
-    const isMobile =
-      /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-        navigator.userAgent
-      );
-
-    if (isMobile) {
-      const isPortrait = window.innerHeight > window.innerWidth;
-
-      if (!isPortrait) {
-        // Show warning overlay
-        if (!this.orientationWarning) {
-          this.orientationWarning = this.add
-            .text(
-              (canvasWidth * dpr) / 2,
-              (gameHeight * dpr) / 2,
-              "Please rotate your device\\nto portrait mode",
-              {
-                fontFamily: "Jura, sans-serif",
-                fontSize: `${32 * dpr}px`,
-                color: "#ffffff",
-                align: "center",
-                backgroundColor: "#000000",
-                padding: { x: 20 * dpr, y: 20 * dpr },
-              }
-            )
-            .setOrigin(0.5)
-            .setDepth(1000);
-          this.uiLayer!.add(this.orientationWarning);
-        }
-        this.orientationWarning.setVisible(true);
-        this.scene.pause();
-      } else {
-        if (this.orientationWarning) {
-          this.orientationWarning.setVisible(false);
-        }
-        this.scene.resume();
-      }
-    }
+    // Both portrait and landscape modes are now supported
+    // No orientation warning needed
+    // Game automatically adapts to window size
   }
 
   onPointerDown(pointer: Phaser.Input.Pointer): void {
+    // Track player activity
+    this.lastActivityTime = Date.now();
+    this.updateActivityStatus(true);
+
     // Only allow starting new slash if previous one is complete
     if (!this.canStartNewSlash || !this.slashTrail) return;
 
@@ -313,6 +329,11 @@ export class GameScene extends Scene {
   }
 
   onPointerMove(pointer: Phaser.Input.Pointer): void {
+    // Track player activity
+    if (this.slashTrail?.isCurrentlyDrawing()) {
+      this.lastActivityTime = Date.now();
+    }
+
     if (!this.slashTrail?.isCurrentlyDrawing()) return;
 
     // Convert screen coordinates to game area coordinates
@@ -324,9 +345,9 @@ export class GameScene extends Scene {
     if (!canContinue) return;
 
     // Check for collision with ALL targets (pixel-perfect)
-    // Only allow hits when target is at least 80% visible
+    // More sensitive - allow hits when target is at least 30% visible
     const visibleTargets = this.targets.filter(
-      (t) => t.getContainer().alpha >= 0.8
+      (t) => t.getContainer().alpha >= 0.3
     );
 
     if (visibleTargets.length === 0) return;
@@ -342,8 +363,8 @@ export class GameScene extends Scene {
       // Accumulate slash length
       this.currentSlashLength += distance;
 
-      // Check points along the line (every 4 pixels for performance)
-      const stepSize = 4;
+      // Check points along the line (every 2 pixels for MORE SENSITIVE collision)
+      const stepSize = 2;
       const steps = Math.ceil(distance / stepSize);
 
       for (let i = 0; i <= steps; i++) {
@@ -528,6 +549,9 @@ export class GameScene extends Scene {
             if (index > -1) {
               this.targets.splice(index, 1);
             }
+
+            // Notify progression manager that enemy was killed
+            this.progressionManager?.onEnemyKilled();
           });
 
           // Make UI camera ignore all explosion objects
@@ -540,15 +564,6 @@ export class GameScene extends Scene {
             duration: 800,
             ease: "Cubic.easeOut",
           });
-
-          // Spawn new target after explosion is visible (only if not in test mode)
-          this.time.delayedCall(600, () => {
-            // Check if we're in test mode (all positions spawned)
-            const testMode = this.targets.length > 1;
-            if (!testMode) {
-              this.spawnRandomTarget();
-            }
-          });
         }
       }
     }
@@ -560,13 +575,23 @@ export class GameScene extends Scene {
   /**
    * Convert grid position (column, row) to game coordinates.
    * Grid is 5x3: columns 1-5 (left to right), rows 1-3 (top to bottom).
-   * Uses gameAreaWidth and gameAreaHeight for positioning within the constrained play area.
+   * Uses safe area and grid margins for multi-aspect ratio support.
    * @param column Grid column (1-5)
    * @param row Grid row (1-3)
+   * @param width Character width in grid cells (default: 1)
+   * @param height Character height in grid cells (default: 1)
    * @returns Object with x and y coordinates
    */
-  gridToGame(column: number, row: number): { x: number; y: number } {
-    const { gameAreaWidth, gameAreaHeight, dpr } = this.gameConfig;
+  public gridToGame(column: number, row: number, width: number = 1, height: number = 1): { x: number; y: number } {
+    const {
+      gridWidth,
+      gridHeight,
+      gridMarginLeft,
+      gridMarginTop,
+      safeAreaOffsetX,
+      safeAreaOffsetY,
+      gameAreaOffsetY,
+    } = this.gameConfig;
 
     // Validate grid position
     if (column < 1 || column > 5 || row < 1 || row > 3) {
@@ -575,26 +600,61 @@ export class GameScene extends Scene {
       );
     }
 
-    // Grid margins (padding around the grid)
-    const marginLeft = 30 * dpr;
-    const marginRight = 30 * dpr;
-    const marginTop = 30 * dpr;
-    const marginBottom = 50 * dpr;
-    const hpBarOffset = 80 * dpr; // Additional space for HP bars above top margin
+    // Calculate x position (center of the character's grid cells)
+    // Character spans columns [column, column + width - 1]
+    // Center column = column + (width - 1) / 2
+    const centerColumn = column + (width - 1) / 2;
+    const x = safeAreaOffsetX + gridMarginLeft + ((centerColumn - 0.5) / 5) * gridWidth;
 
-    // Calculate playable area within margins
-    const gridWidth = gameAreaWidth * dpr - marginLeft - marginRight;
-    const gridHeight = gameAreaHeight * dpr - marginTop - marginBottom - hpBarOffset;
-
-    // Calculate x position (5 columns) within the grid area
-    // Column 1 = 10%, 2 = 30%, 3 = 50%, 4 = 70%, 5 = 90% of grid width
-    const x = marginLeft + ((column - 0.5) / 5) * gridWidth;
-
-    // Calculate y position (3 rows) within the grid area
-    // Row 1 = 16.67%, 2 = 50%, 3 = 83.33% of grid height
-    const y = marginTop + hpBarOffset + ((row - 0.5) / 3) * gridHeight;
+    // Calculate y position (center of the character's grid cells)
+    // Character spans rows [row, row + height - 1]
+    // Center row = row + (height - 1) / 2
+    const centerRow = row + (height - 1) / 2;
+    const y = safeAreaOffsetY + gridMarginTop + ((centerRow - 0.5) / 3) * gridHeight;
 
     return { x, y };
+  }
+
+  /**
+   * Start activity checker - runs every second to detect if player is idle
+   */
+  startActivityChecker(): void {
+    // Check every 1 second
+    this.activityCheckEvent = this.time.addEvent({
+      delay: 1000,
+      callback: this.checkActivity,
+      callbackScope: this,
+      loop: true,
+    });
+  }
+
+  /**
+   * Check if player is active or idle
+   */
+  checkActivity(): void {
+    const now = Date.now();
+    const idleTime = now - this.lastActivityTime;
+
+    // If idle for more than 3 seconds, mark as inactive
+    if (idleTime > 3000 && this.isPlayerActive) {
+      this.updateActivityStatus(false);
+    }
+  }
+
+  /**
+   * Update activity status and adjust spawn rate
+   */
+  updateActivityStatus(isActive: boolean): void {
+    if (this.isPlayerActive === isActive) return;
+
+    this.isPlayerActive = isActive;
+
+    // Update progression manager with new activity status
+    if (this.progressionManager) {
+      this.progressionManager.setPlayerActivity(isActive);
+    }
+
+    console.log(`Player ${isActive ? "ACTIVE" : "IDLE"} - Spawn rate ${isActive ? "INCREASED" : "DECREASED"}`);
   }
 
   /**
@@ -605,13 +665,72 @@ export class GameScene extends Scene {
    * @returns Object with x and y coordinates in game area space
    */
   screenToGame(screenX: number, screenY: number): { x: number; y: number } {
-    const { gameAreaOffsetX, dpr } = this.gameConfig;
-
-    // Subtract camera offset to get game area coordinates
+    // Phaser pointer.x/y are already in world coordinates (accounting for camera scroll)
+    // Just return them directly for the slash trail positioning
     return {
-      x: screenX - gameAreaOffsetX * dpr,
-      y: screenY, // Y is not offset
+      x: screenX,
+      y: screenY
     };
+  }
+
+  /**
+   * Change background based on character type
+   * Fullscreen coverage - covers entire viewport
+   * Falls back to default galaxy if specific background fails to load
+   * @param characterClass The character class that spawned
+   */
+  changeBackground(characterClass: CharacterClass): void {
+    if (!this.gameBackground) return;
+
+    let bgKey: string;
+    if (characterClass === OrangeBot) {
+      bgKey = "bg-orange";
+    } else if (characterClass === LeafBot) {
+      bgKey = "bg-leaf";
+    } else if (characterClass === FlyBot) {
+      bgKey = "bg-fly";
+    } else {
+      return; // Unknown character type
+    }
+
+    // Use default galaxy background if specific one doesn't exist
+    const finalBgKey = this.textures.exists(bgKey) ? bgKey : "game-bg";
+
+    // Only change background if it's different from current
+    if (this.currentBackgroundKey === finalBgKey) {
+      return; // Same background, no need to change
+    }
+
+    // Update current background tracker
+    this.currentBackgroundKey = finalBgKey;
+
+    // Change texture
+    this.gameBackground.setTexture(finalBgKey);
+
+    // Recalculate fullscreen size for new background (cover mode)
+    const fullCanvasWidth = this.cameras.main.width;
+    const fullCanvasHeight = this.cameras.main.height;
+    const bgWidth = this.gameBackground.width;
+    const bgHeight = this.gameBackground.height;
+    const bgAspectRatio = bgWidth / bgHeight;
+    const screenAspectRatio = fullCanvasWidth / fullCanvasHeight;
+
+    let displayWidth: number;
+    let displayHeight: number;
+
+    if (bgAspectRatio > screenAspectRatio) {
+      // Background wider than screen - fit to HEIGHT (cover mode)
+      displayHeight = fullCanvasHeight;
+      displayWidth = fullCanvasHeight * bgAspectRatio;
+    } else {
+      // Background taller than screen - fit to WIDTH (cover mode)
+      displayWidth = fullCanvasWidth;
+      displayHeight = fullCanvasWidth / bgAspectRatio;
+    }
+
+    this.gameBackground.setDisplaySize(displayWidth, displayHeight);
+
+    console.log(`🎨 Background: ${finalBgKey} → ${displayWidth.toFixed(0)}x${displayHeight.toFixed(0)} (COVER MODE)`);
   }
 
   /**
@@ -642,6 +761,32 @@ export class GameScene extends Scene {
     };
   }
 
+  /**
+   * Spawn an enemy of a specific character class at a specific position
+   * Called by ProgressionManager
+   */
+  spawnEnemy(characterClass: CharacterClass, position: { x: number; y: number }): void {
+    // Create target at specified position
+    const target = new characterClass({
+      scene: this,
+      x: position.x,
+      y: position.y,
+      gameConfig: this.gameConfig,
+      audioManager: this.audioManager || {} as AudioManager,
+    });
+
+    // Make UI camera ignore all target's game objects
+    const targetObjects = target.getAllGameObjects();
+    targetObjects.forEach((obj) => this.ignoreFromUICamera(obj));
+
+    // Add to targets array
+    this.targets.push(target);
+  }
+
+  /**
+   * Legacy method - kept for reference but no longer used
+   * Progression is now handled by ProgressionManager
+   */
   spawnRandomTarget(): void {
     // Array of available character classes
     // const characterClasses = [OrangeBot, LeafBot, FlyBot];
@@ -658,8 +803,24 @@ export class GameScene extends Scene {
           const RandomCharacter =
             characterClasses[Math.floor(Math.random() * characterClasses.length)];
 
+          // Create a temporary instance to get the character size
+          const tempTarget = new RandomCharacter({
+            scene: this,
+            x: 0,
+            y: 0,
+            gameConfig: this.gameConfig,
+            audioManager: this.audioManager || {} as AudioManager,
+          });
+          const size = tempTarget.getSize();
+          tempTarget.destroy();
+
+          // Skip if character doesn't fit at this position
+          if (column + size.w - 1 > 5 || row + size.h - 1 > 3) {
+            continue;
+          }
+
           // Convert grid position to game coordinates (no manual offset needed anymore!)
-          const { x, y } = this.gridToGame(column, row);
+          const { x, y } = this.gridToGame(column, row, size.w, size.h);
 
           // Create target
           const target = new RandomCharacter({
@@ -667,7 +828,7 @@ export class GameScene extends Scene {
             x,
             y,
             gameConfig: this.gameConfig,
-            audioManager: this.audioManager!,
+            audioManager: this.audioManager || {} as AudioManager,
           });
 
           // Make UI camera ignore all target's game objects
@@ -686,13 +847,33 @@ export class GameScene extends Scene {
     const RandomCharacter =
       characterClasses[Math.floor(Math.random() * characterClasses.length)];
 
-    // Select random grid position
-    const column = Math.floor(Math.random() * 5) + 1; // 1-5
-    const row = Math.floor(Math.random() * 3) + 1; // 1-3
+    // Create a temporary instance to get the character size
+    const tempTarget = new RandomCharacter({
+      scene: this,
+      x: 0,
+      y: 0,
+      gameConfig: this.gameConfig,
+      audioManager: this.audioManager || {} as AudioManager,
+    });
+    const size = tempTarget.getSize();
+    tempTarget.destroy();
+
+    // Select random grid position (accounting for character size)
+    let maxColumn = 5 - size.w + 1;
+    let minColumn = 1;
+
+    // Special case: restrict OrangeBot and LeafBot to central columns (2-4)
+    if (size.h > 1 || size.w > 1) {
+      minColumn = 2;
+      maxColumn = 4;
+    }
+
+    const column = Math.floor(Math.random() * (maxColumn - minColumn + 1)) + minColumn;
+    const maxRow = 3 - size.h + 1;
+    const row = Math.floor(Math.random() * maxRow) + 1;
 
     // Convert grid position to game coordinates
-    // Grid system now automatically reserves space at top for HP bars
-    const { x, y } = this.gridToGame(column, row);
+    const { x, y } = this.gridToGame(column, row, size.w, size.h);
 
     // Create new target at game area coordinates
     const target = new RandomCharacter({
@@ -700,7 +881,7 @@ export class GameScene extends Scene {
       x,
       y,
       gameConfig: this.gameConfig,
-      audioManager: this.audioManager!,
+      audioManager: this.audioManager || {} as AudioManager,
     });
 
     // Make UI camera ignore all target's game objects
