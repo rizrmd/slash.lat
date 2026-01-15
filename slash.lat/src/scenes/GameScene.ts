@@ -33,8 +33,18 @@ export class GameScene extends Scene {
   private maxHP: number = 1000;
   private currentHP: number = 1000;
   private coins: number = 0;
+  private playerLevel: number = 1; // Player level based on total coins
   private unlockedBackgrounds: string[] = ['bg-orange']; // Start with default background
   private selectedBackground: string = 'bg-orange';
+
+  // Background unlock levels
+  private backgroundLevels = [
+    { coins: 0, background: 'bg-orange', name: 'Orange Level' },
+    { coins: 10000, background: 'bg-leaf', name: 'Leaf Level' },
+    { coins: 25000, background: 'bg-fly', name: 'Fly Level' },
+    { coins: 50000, background: 'game-bg', name: 'Master Level' },
+  ];
+
   private hpBarBackground?: Phaser.GameObjects.Graphics;
   private hpBarFill?: Phaser.GameObjects.Graphics;
   private hpText?: Phaser.GameObjects.Text;
@@ -1073,10 +1083,12 @@ export class GameScene extends Scene {
     try {
       const saveData = {
         totalCoins: this.coins,
+        playerLevel: this.playerLevel,
         unlockedBackgrounds: this.unlockedBackgrounds,
         selectedBackground: this.selectedBackground,
       };
       localStorage.setItem('slashlat_save', JSON.stringify(saveData));
+      console.log(`💾 Saved: Level ${this.playerLevel}, Coins ${this.coins}, Background ${this.selectedBackground}`);
     } catch (e) {
       console.warn('Failed to save progress:', e);
     }
@@ -1091,6 +1103,7 @@ export class GameScene extends Scene {
       if (saved) {
         const saveData = JSON.parse(saved);
         this.coins = saveData.totalCoins || 0;
+        this.playerLevel = saveData.playerLevel || 1;
         this.unlockedBackgrounds = saveData.unlockedBackgrounds || ['bg-orange'];
         this.selectedBackground = saveData.selectedBackground || 'bg-orange';
 
@@ -1098,6 +1111,8 @@ export class GameScene extends Scene {
         if (this.coinText) {
           this.coinText.setText(`${this.coins}`);
         }
+
+        console.log(`📂 Loaded: Level ${this.playerLevel}, Coins ${this.coins}, Backgrounds ${this.unlockedBackgrounds.length}/4`);
       }
     } catch (e) {
       console.warn('Failed to load progress:', e);
@@ -1105,67 +1120,109 @@ export class GameScene extends Scene {
   }
 
   /**
-   * Check if player has unlocked new backgrounds
+   * Check for level up and new background unlocks
    */
   checkBackgroundUnlock(): void {
-    const BACKGROUND_UNLOCK_THRESHOLD = 10000;
+    // Calculate player level based on total coins
+    const newLevel = this.calculatePlayerLevel();
 
-    // Check each background type
-    const backgrounds = ['bg-leaf', 'bg-fly'];
-    const backgroundNames = ['bg-leaf', 'bg-fly'];
+    if (newLevel > this.playerLevel) {
+      // Level up!
+      this.playerLevel = newLevel;
+      console.log(`⬆️ LEVEL UP! Now level ${this.playerLevel}`);
 
-    backgrounds.forEach((bg, index) => {
-      if (!this.unlockedBackgrounds.includes(bg) && this.coins >= BACKGROUND_UNLOCK_THRESHOLD) {
-        this.unlockedBackgrounds.push(bg);
+      // Check for new background unlocks
+      this.backgroundLevels.forEach((levelData) => {
+        if (levelData.coins > 0 && !this.unlockedBackgrounds.includes(levelData.background) && this.coins >= levelData.coins) {
+          this.unlockedBackgrounds.push(levelData.background);
 
-        // Show unlock notification
-        this.showUnlockNotification(backgroundNames[index]);
+          // Show unlock notification
+          this.showLevelUpNotification(levelData);
+        }
+      });
 
-        // Play special sound
-        this.audioManager?.play('coin-received');
+      // Save progress
+      this.saveProgress();
+    }
+  }
+
+  /**
+   * Calculate player level based on total coins
+   */
+  calculatePlayerLevel(): number {
+    for (let i = this.backgroundLevels.length - 1; i >= 0; i--) {
+      if (this.coins >= this.backgroundLevels[i].coins) {
+        return i + 1;
       }
-    });
+    }
+    return 1;
   }
 
   /**
    * Show unlock notification for new background
    */
   showUnlockNotification(backgroundName: string): void {
+    // Deprecated - use showLevelUpNotification instead
+  }
+
+  /**
+   * Show level up notification with new background unlock
+   */
+  showLevelUpNotification(levelData: any): void {
     const { canvasWidth, canvasHeight } = this.gameConfig;
 
     // Create notification container
     const notification = this.add.container(canvasWidth / 2, canvasHeight / 2);
 
     // Background panel
-    const panel = this.add.rectangle(0, 0, 400, 200, 0x000000, 0.8);
-    panel.setStrokeStyle(4, 0xffd700);
+    const panel = this.add.rectangle(0, 0, 500, 250, 0x000000, 0.9);
+    panel.setStrokeStyle(5, 0xffd700);
     notification.add(panel);
 
-    // Title
-    const title = this.add.text(0, -50, '🎉 BACKGROUND UNLOCKED!', {
-      fontSize: '32px',
+    // Level up title
+    const title = this.add.text(0, -80, '🎉 LEVEL UP!', {
+      fontSize: '42px',
       color: '#ffd700',
       fontStyle: 'bold',
       stroke: '#000',
-      strokeThickness: 4,
+      strokeThickness: 6,
     });
     title.setOrigin(0.5);
     notification.add(title);
 
-    // Background name
-    const name = this.add.text(0, 0, `${backgroundName.toUpperCase()}`, {
-      fontSize: '24px',
+    // Level number
+    const levelText = this.add.text(0, -30, `Level ${this.playerLevel}`, {
+      fontSize: '36px',
       color: '#ffffff',
+      fontStyle: 'bold',
+      stroke: '#000',
+      strokeThickness: 4,
+    });
+    levelText.setOrigin(0.5);
+    notification.add(levelText);
+
+    // Background name
+    const name = this.add.text(0, 20, `${levelData.name.toUpperCase()}`, {
+      fontSize: '24px',
+      color: '#66ff66',
       stroke: '#000',
       strokeThickness: 3,
     });
     name.setOrigin(0.5);
     notification.add(name);
 
-    // Instruction
-    const instruction = this.add.text(0, 50, 'Click coin icon to change background', {
-      fontSize: '16px',
+    // Coin requirement
+    const coinsText = this.add.text(0, 60, `${(levelData.coins / 1000).toFixed(0)}k coins reached!`, {
+      fontSize: '18px',
       color: '#aaaaaa',
+    });
+    coinsText.setOrigin(0.5);
+    notification.add(coinsText);
+
+    // Instruction
+    const instruction = this.add.text(0, 95, 'Click coin icon to change background', {
+      fontSize: '16px',
+      color: '#66ccff',
     });
     instruction.setOrigin(0.5);
     notification.add(instruction);
@@ -1177,17 +1234,20 @@ export class GameScene extends Scene {
       targets: notification,
       scale: { from: 0, to: 1 },
       alpha: { from: 0, to: 1 },
-      duration: 500,
+      duration: 600,
       ease: 'Back.easeOut',
     });
 
-    // Auto hide after 4 seconds
-    this.time.delayedCall(4000, () => {
+    // Play sound
+    this.audioManager?.play('coin-received');
+
+    // Auto hide after 5 seconds
+    this.time.delayedCall(5000, () => {
       this.tweens.add({
         targets: notification,
         scale: 0,
         alpha: 0,
-        duration: 300,
+        duration: 400,
         ease: 'Back.easeIn',
         onComplete: () => {
           notification.destroy();
@@ -1227,14 +1287,25 @@ export class GameScene extends Scene {
   showLockedMessage(): void {
     const { canvasWidth, canvasHeight } = this.gameConfig;
 
-    const notification = this.add.text(canvasWidth / 2, canvasHeight / 2 - 100, `Collect ${10000} coins to unlock new backgrounds!`, {
-      fontSize: '24px',
+    // Find next unlock
+    const nextUnlock = this.backgroundLevels.find(level => level.coins > this.coins);
+
+    if (!nextUnlock) {
+      // All unlocked
+      return;
+    }
+
+    const message = `Next unlock at ${nextUnlock.name}\n${(nextUnlock.coins / 1000).toFixed(0)}k coins needed\nCurrent: ${(this.coins / 1000).toFixed(1)}k / ${(nextUnlock.coins / 1000).toFixed(0)}k`;
+
+    const notification = this.add.text(canvasWidth / 2, canvasHeight / 2 - 100, message, {
+      fontSize: '22px',
       color: '#ff6666',
       fontStyle: 'bold',
       stroke: '#000',
       strokeThickness: 4,
       backgroundColor: '#000000',
       padding: { x: 20, y: 10 },
+      align: 'center',
     });
     notification.setOrigin(0.5);
     notification.setDepth(10000);
@@ -1243,7 +1314,7 @@ export class GameScene extends Scene {
       targets: notification,
       alpha: { from: 1, to: 0 },
       duration: 2000,
-      delay: 1500,
+      delay: 2000,
       onComplete: () => {
         notification.destroy();
       },
@@ -1253,11 +1324,18 @@ export class GameScene extends Scene {
   /**
    * Show notification when background changes
    */
-  showBackgroundChangeNotification(backgroundName: string): void {
+  showBackgroundChangeNotification(backgroundKey: string): void {
     const { canvasWidth, canvasHeight } = this.gameConfig;
 
-    const notification = this.add.text(canvasWidth / 2, canvasHeight / 2 - 100, `Background: ${backgroundName.toUpperCase()}`, {
-      fontSize: '28px',
+    // Find level data for this background
+    const levelData = this.backgroundLevels.find(level => level.background === backgroundKey);
+
+    const message = levelData
+      ? `🎨 ${levelData.name.toUpperCase()} (Level ${this.backgroundLevels.indexOf(levelData) + 1})`
+      : `Background: ${backgroundKey.toUpperCase()}`;
+
+    const notification = this.add.text(canvasWidth / 2, canvasHeight / 2 - 120, message, {
+      fontSize: '26px',
       color: '#66ff66',
       fontStyle: 'bold',
       stroke: '#000',
@@ -1271,9 +1349,9 @@ export class GameScene extends Scene {
     this.tweens.add({
       targets: notification,
       alpha: { from: 1, to: 0 },
-      y: canvasHeight / 2 - 150,
+      y: canvasHeight / 2 - 170,
       duration: 1500,
-      delay: 1000,
+      delay: 800,
       ease: 'Cubic.easeOut',
       onComplete: () => {
         notification.destroy();
