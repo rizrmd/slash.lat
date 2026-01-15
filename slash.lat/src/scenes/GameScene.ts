@@ -276,7 +276,9 @@ export class GameScene extends Scene {
       TEST_CONTINUOUS_CONFIG,
       {
         onSpawnEnemy: (characterClass, position) => {
-          this.changeBackground(characterClass);
+          // DISABLED: Don't change background per character
+          // Player controls background via coin icon click
+          // this.changeBackground(characterClass);
           this.spawnEnemy(characterClass, position);
         },
         gridToGame: (col, row, w, h) => this.gridToGame(col, row, w, h),
