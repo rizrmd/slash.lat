@@ -13,32 +13,18 @@ export interface SlashMark {
     time: number;
 }
 
-/**
- * Game configuration (matching commit 7e02a06 that WORKS!)
- * Simple, straightforward configuration without complex safe area calculations
- */
 export interface GameConfig {
-    // Device pixel ratio for high-DPI displays
     dpr: number;
-
-    // Maximum game width (fixed at 400px for consistent gameplay)
     maxGameWidth: number;
-
-    // Game world dimensions (logical coordinate space)
-    gameWidth: number; // Always 400px
-    canvasWidth: number; // Screen width (e.g., 1080px)
-    canvasHeight: number; // Screen height (same as gameHeight)
-    gameHeight: number; // Screen height (e.g., 1920px)
-
-    // Game play area (where characters can spawn)
-    gameAreaWidth: number;
-    gameAreaOffsetX: number;
-    gameAreaHeight: number;
-    gameAreaOffsetY: number;
-
-    // Grid dimensions (5x3 for character positioning)
-    gridWidth: number;
-    gridHeight: number;
+    gameWidth: number;
+    canvasWidth: number;
+    gameHeight: number;
+    gameAreaWidth: number;  // Actual play area width (max 500px desktop, full width mobile)
+    gameAreaOffsetX: number; // X offset to center game area on desktop
+    gameAreaHeight: number;  // Actual play area height (full height minus bottom UI space)
+    gameAreaOffsetY: number; // Y offset for game area (always 0 at top)
+    gridWidth?: number; // Grid width calculated from gameAreaWidth (for character sizing)
+    gridHeight?: number; // Grid height calculated from gameAreaHeight (for character sizing)
 }
 
 export interface Weapon {
