@@ -365,16 +365,26 @@ export abstract class Target {
     const normalizedY = this.container.y / canvasHeight;
     const baseScale = 0.7 + (normalizedY * 0.6);
 
+    // Get CURRENT scale from container
+    const currentScale = this.container.scale;
+    const targetScale = currentScale * 1.25; // 25% increase from CURRENT scale
+
+    console.log(`💓 Breathing START: current scale=${currentScale.toFixed(2)}, target=${targetScale.toFixed(2)}`);
+
     this.breathingTween = this.scene.tweens.add({
       targets: this.container,
-      scale: baseScale * 1.20, // Increase by 20% (MORE visible!)
-      duration: 500 + Math.random() * 300, // 0.5-0.8 seconds (SUPER FAST!)
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.easeInOut"
+      scale: targetScale, // Animate TO this scale
+      duration: 400 + Math.random() * 200, // 0.4-0.6 seconds (BLAZING FAST!)
+      yoyo: true, // Go back to original scale
+      repeat: -1, // Infinite
+      ease: "Sine.easeInOut",
+      onUpdate: () => {
+        // Log every few frames to verify it's working
+        if (Math.random() < 0.01) {
+          console.log(`🔄 Breathing anim: scale=${this.container.scale.toFixed(3)}`);
+        }
+      }
     });
-
-    console.log(`💓 FAST Breathing: scale ${baseScale.toFixed(2)} → ${(baseScale * 1.20).toFixed(2)}`);
   }
 
   protected onFullyVisible(): void {
