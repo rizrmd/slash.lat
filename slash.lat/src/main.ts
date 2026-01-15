@@ -97,14 +97,15 @@ const gameAreaOffsetY = safeAreaOffsetY;
  * GRID SYSTEM
  * 5x3 grid for character positioning, with margins within safe area
  * Grid margins prevent character cropping at edges
- * Margins are in game coordinate space (no DPR multiplication needed)
+ * IMPORTANT: Grid width/height MUST be multiplied by DPR to match canvas coordinate space
  */
-const gridMarginLeft = isLandscape ? 100 : 80;
-const gridMarginRight = isLandscape ? 100 : 80;
-const gridMarginTop = isLandscape ? 100 : 80;
-const gridMarginBottom = isLandscape ? 100 : 80;
-const gridWidth = gameAreaWidth - gridMarginLeft - gridMarginRight;
-const gridHeight = gameAreaHeight - gridMarginTop - gridMarginBottom;
+const gridMarginLeft = (isLandscape ? 30 : 30) * dpr;
+const gridMarginRight = (isLandscape ? 30 : 30) * dpr;
+const gridMarginTop = (isLandscape ? 30 : 30) * dpr;
+const gridMarginBottom = (isLandscape ? 50 : 50) * dpr;
+const hpBarOffset = 80 * dpr; // Additional space for HP bar
+const gridWidth = gameAreaWidth * dpr - gridMarginLeft - gridMarginRight;
+const gridHeight = gameAreaHeight * dpr - gridMarginTop - gridMarginBottom - hpBarOffset;
 
 /**
  * Desktop vs Mobile Detection

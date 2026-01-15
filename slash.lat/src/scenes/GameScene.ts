@@ -616,7 +616,7 @@ export class GameScene extends Scene {
   /**
    * Convert grid position (column, row) to game coordinates.
    * Grid is 5x3: columns 1-5 (left to right), rows 1-3 (top to bottom).
-   * Uses safe area and grid margins for multi-aspect ratio support.
+   * Uses game area and DPR-scaled dimensions (from working commit 7e02a06)
    * @param column Grid column (1-5)
    * @param row Grid row (1-3)
    * @param width Character width in grid cells (default: 1)
@@ -624,15 +624,7 @@ export class GameScene extends Scene {
    * @returns Object with x and y coordinates
    */
   public gridToGame(column: number, row: number, width: number = 1, height: number = 1): { x: number; y: number } {
-    const {
-      gridWidth,
-      gridHeight,
-      gridMarginLeft,
-      gridMarginTop,
-      safeAreaOffsetX,
-      safeAreaOffsetY,
-      gameAreaOffsetY,
-    } = this.gameConfig;
+    const { gameAreaWidth, gameAreaHeight, dpr } = this.gameConfig;
 
     // Validate grid position
     if (column < 1 || column > 5 || row < 1 || row > 3) {
@@ -641,17 +633,24 @@ export class GameScene extends Scene {
       );
     }
 
-    // Calculate x position (center of the character's grid cells)
-    // Character spans columns [column, column + width - 1]
-    // Center column = column + (width - 1) / 2
-    const centerColumn = column + (width - 1) / 2;
-    const x = safeAreaOffsetX + gridMarginLeft + ((centerColumn - 0.5) / 5) * gridWidth;
+    // Grid margins (padding around the grid) - MUST match main.ts
+    const marginLeft = 30 * dpr;
+    const marginRight = 30 * dpr;
+    const marginTop = 30 * dpr;
+    const marginBottom = 50 * dpr;
+    const hpBarOffset = 80 * dpr; // Additional space for HP bars above top margin
 
-    // Calculate y position (center of the character's grid cells)
-    // Character spans rows [row, row + height - 1]
-    // Center row = row + (height - 1) / 2
-    const centerRow = row + (height - 1) / 2;
-    const y = safeAreaOffsetY + gridMarginTop + ((centerRow - 0.5) / 3) * gridHeight;
+    // Calculate playable area within margins
+    const gridWidth = gameAreaWidth * dpr - marginLeft - marginRight;
+    const gridHeight = gameAreaHeight * dpr - marginTop - marginBottom - hpBarOffset;
+
+    // Calculate x position (5 columns) within the grid area
+    // Column 1 = 10%, 2 = 30%, 3 = 50%, 4 = 70%, 5 = 90% of grid width
+    const x = marginLeft + ((column - 0.5) / 5) * gridWidth;
+
+    // Calculate y position (3 rows) within the grid area
+    // Row 1 = 16.67%, 2 = 50%, 3 = 83.33% of grid height
+    const y = marginTop + hpBarOffset + ((row - 0.5) / 3) * gridHeight;
 
     return { x, y };
   }
@@ -691,23 +690,32 @@ export class GameScene extends Scene {
     const c = this.gameConfig;
     const cam = this.cameras.main;
     const spawn = this.lastSpawnPosition;
+    const dpr = c.dpr;
+
+    // Calculate grid margins (matching main.ts)
+    const marginLeft = 30 * dpr;
+    const marginTop = 30 * dpr;
+    const hpBarOffset = 80 * dpr;
+    const gridWidth = c.gameAreaWidth * dpr - marginLeft - marginLeft;
+    const gridHeight = c.gameAreaHeight * dpr - marginTop - (50 * dpr) - hpBarOffset;
 
     const debugInfo = [
       `=== DEBUG INFO ===`,
       `Canvas: ${c.canvasWidth}x${c.canvasHeight}`,
-      `Game: ${c.gameWidth.toFixed(0)}x${c.gameHeight.toFixed(0)}`,
+      `GameArea: ${c.gameAreaWidth.toFixed(0)}x${c.gameAreaHeight.toFixed(0)}`,
       `DPR: ${c.dpr.toFixed(2)}`,
       ``,
-      `Grid: ${c.gridWidth.toFixed(0)}x${c.gridHeight.toFixed(0)}`,
-      `Margins: L=${c.gridMarginLeft}, T=${c.gridMarginTop}`,
-      `SafeArea: ${c.safeAreaWidth.toFixed(0)}x${c.safeAreaHeight.toFixed(0)}`,
+      `Grid (scaled):`,
+      `  W: ${gridWidth.toFixed(0)} H: ${gridHeight.toFixed(0)}`,
+      `  Margins: L=${marginLeft.toFixed(0)} T=${marginTop.toFixed(0)}`,
+      `  HP Offset: ${hpBarOffset.toFixed(0)}`,
       ``,
       `Camera: ${cam.width.toFixed(0)}x${cam.height.toFixed(0)}`,
       `Zoom: ${cam.zoom.toFixed(3)}`,
       ``,
       `Last Spawn:`,
-      `X: ${spawn ? spawn.x.toFixed(0) : 'N/A'}`,
-      `Y: ${spawn ? spawn.y.toFixed(0) : 'N/A'}`,
+      `  X: ${spawn ? spawn.x.toFixed(0) : 'N/A'}`,
+      `  Y: ${spawn ? spawn.y.toFixed(0) : 'N/A'}`,
       `Active: ${this.targets.length} enemies`
     ].join('\n');
 
