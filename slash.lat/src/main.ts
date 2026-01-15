@@ -57,12 +57,12 @@ let gameWidth: number;
 let gameHeight: number;
 
 if (isPortrait) {
-  // Portrait: game dimensions match canvas
+  // Portrait for SMARTPHONE - use FULL canvas, no scaling down!
   gameWidth = canvasWidth;
   gameHeight = canvasHeight;
-  scale = canvasWidth / BASE_WIDTH; // Scale factor relative to base resolution
+  scale = 1.0; // CRITICAL FIX: No scaling for smartphone - use full 1.0 scale!
 } else {
-  // Landscape: game dimensions match canvas
+  // Landscape for laptop - scale down to fit base height
   gameWidth = canvasWidth;
   gameHeight = canvasHeight;
   scale = canvasHeight / BASE_HEIGHT; // Scale factor relative to base resolution
@@ -71,10 +71,10 @@ if (isPortrait) {
 /**
  * SAFE AREA CALCULATION
  * Critical gameplay elements stay within safe area
- * Safe area is 90% for landscape (more horizontal space), 85% for portrait
- * This ensures content is visible on all aspect ratios (notch, rounded corners, etc.)
+ * - Landscape: 90% (more horizontal space)
+ * - Portrait (smartphone): 95% (almost full screen - need max space!)
  */
-const SAFE_AREA_PERCENTAGE = isLandscape ? 0.90 : 0.85;
+const SAFE_AREA_PERCENTAGE = isLandscape ? 0.90 : 0.95;
 const MARGIN_PERCENTAGE = (1 - SAFE_AREA_PERCENTAGE) / 2;
 
 const safeAreaWidth = gameWidth * SAFE_AREA_PERCENTAGE;
@@ -96,13 +96,13 @@ const gameAreaOffsetY = safeAreaOffsetY;
 /**
  * GRID SYSTEM
  * 5x3 grid for character positioning, with margins within safe area
- * Grid margins prevent character cropping at edges
- * Margins scale with base resolution
+ * - Landscape: 100px margins (laptop has more space)
+ * - Portrait (smartphone): 40px margins (need max play area!)
  */
-const gridMarginLeft = isLandscape ? 100 : 80;
-const gridMarginRight = isLandscape ? 100 : 80;
-const gridMarginTop = isLandscape ? 100 : 80;
-const gridMarginBottom = isLandscape ? 100 : 80;
+const gridMarginLeft = isLandscape ? 100 : 40;
+const gridMarginRight = isLandscape ? 100 : 40;
+const gridMarginTop = isLandscape ? 100 : 40;
+const gridMarginBottom = isLandscape ? 100 : 40;
 const gridWidth = gameAreaWidth - gridMarginLeft - gridMarginRight;
 const gridHeight = gameAreaHeight - gridMarginTop - gridMarginBottom;
 
