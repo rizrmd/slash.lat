@@ -199,114 +199,6 @@ export abstract class Target {
   }
 
   /**
-   * Start DYNAMIC 50-phase breathing/zoom effect - SUPER DYNAMIC
-   * Uses chained tweens for 50 different waypoints with zoom in/out pattern
-   * Each character has 50 unique movements - completely random and free!
-   */
-  private startBreathingEffect(): void {
-    // Don't create if already exists
-    if (this.breathingTween) return;
-
-    // Get base scale from current position
-    const { canvasHeight, canvasWidth, gameAreaOffsetY, gameAreaHeight } = this.gameConfig;
-    const normalizedY = this.container.y / canvasHeight;
-    const baseScale = 0.7 + (normalizedY * 0.6);
-
-    const attackScale = baseScale * 3.0; // 3x bigger
-    const moveDuration = 800 + Math.random() * 400; // 0.8-1.2s per phase (faster)
-
-    // Store BASE position
-    const baseX = this.container.x;
-    const baseY = this.container.y;
-
-    // Get character size for bounds checking
-    const size = this.getSize();
-    const charWidth = this.image.displayWidth;
-    const charHeight = this.image.displayHeight;
-
-    // Calculate safe bounds (keep entire character on screen)
-    const padding = Math.max(charWidth, charHeight) * 0.8; // 80% padding
-    const minY = gameAreaOffsetY + padding;
-    const maxY = gameAreaOffsetY + gameAreaHeight - padding;
-    const minX = padding;
-    const maxX = canvasWidth - padding;
-
-    // Constrain offsets to keep character within bounds
-    const maxOffsetUp = Math.min(100, Math.max(0, baseY - minY));
-    const maxOffsetDown = Math.min(100, Math.max(0, maxY - baseY));
-    const maxOffsetLeft = Math.min(120, Math.max(0, baseX - minX));
-    const maxOffsetRight = Math.min(120, Math.max(0, maxX - baseX));
-
-    // Generate 50 unique waypoints for MAXIMUM DYNAMIC pattern
-    const waypoints: Array<{x: number, y: number, scale: number}> = [];
-    for (let i = 0; i < 50; i++) {
-      // Random zoom pattern (completely random, not fixed)
-      const isZoomIn = Math.random() > 0.5;
-
-      // Calculate random offset within safe bounds (FULL RANGE)
-      const offsetX = (Math.random() - 0.5) * 2 * Math.min(maxOffsetLeft, maxOffsetRight);
-      const offsetY = (Math.random() - 0.5) * 2 * Math.min(maxOffsetUp, maxOffsetDown);
-
-      // Clamp to safe bounds
-      const targetX = Math.max(minX, Math.min(maxX, baseX + offsetX));
-      const targetY = Math.max(minY, Math.min(maxY, baseY + offsetY));
-
-      waypoints.push({
-        x: targetX,
-        y: targetY,
-        scale: isZoomIn ? attackScale : baseScale
-      });
-    }
-
-    // Use a counter to track current waypoint
-    let currentWaypoint = 0;
-
-    // Create a single tween that chains through all 50 waypoints
-    const moveToNextWaypoint = () => {
-      const target = waypoints[currentWaypoint];
-
-      this.scene.tweens.add({
-        targets: this.container,
-        x: target.x,
-        y: target.y,
-        scale: target.scale,
-        duration: moveDuration,
-        ease: "Sine.easeInOut",
-        onComplete: () => {
-          currentWaypoint = (currentWaypoint + 1) % waypoints.length;
-          moveToNextWaypoint(); // Move to next waypoint
-        },
-        persist: true
-      });
-    };
-
-    // Start the chain
-    moveToNextWaypoint();
-    this.breathingTween = { destroy: () => {} }; // Dummy object for cleanup
-  }
-
-  /**
-   * Start SIMPLE breathing effect - just scale in/out, no position changes
-   * Much lighter than the 50-waypoint version
-   */
-  private startSimpleBreathingEffect(): void {
-    // Get current scale as base
-    const { canvasHeight } = this.gameConfig;
-    const normalizedY = this.container.y / canvasHeight;
-    const baseScale = 0.7 + (normalizedY * 0.6);
-
-    // Simple yoyo tween: scale up and down
-    this.breathingTween = this.scene.tweens.add({
-      targets: this.container,
-      scale: baseScale * 1.05, // Increase by 5%
-      duration: 1500 + Math.random() * 1000, // 1.5-2.5 seconds
-      yoyo: true, // Go back to original scale
-      repeat: -1, // Infinite loop
-      ease: "Sine.easeInOut"
-    });
-  }
-
-  /**
    * Start UNPREDICTABLE random movement - gabungan berbagai pola acak
    * Gerakan benar-benar random dan sulit ditebak
    * Delay dulu agar user sempat lihat karakter spawn dengan sempurna
@@ -342,14 +234,14 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 1: Random waypoints - SAFE BOUNDARIES!
-   * Karakter bergerak random tapi TIDAK akan keluar layar
+   * Pattern 1: Random waypoints - ADAPTIVE BOUNDARIES!
+   * Smartphone: lebih longgar, Laptop: lebih ketat
    */
   private startRandomWaypoints(): void {
-    const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
+    const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, isPortrait } = this.gameConfig;
 
-    // EXTRA SAFE padding - karakter tidak boleh deket tepi sama sekali!
-    const padding = 100 * dpr; // Lebih besar padding (100px)
+    // Adaptive padding - smartphone butuh lebih banyak ruang!
+    const padding = isPortrait ? 60 * dpr : 100 * dpr;
     const minX = gameAreaOffsetX + gridMarginLeft + padding;
     const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
     const minY = gameAreaOffsetY + gridMarginTop + padding;
@@ -380,24 +272,24 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 2: Circular motion - SAFE CIRCLES!
-   * Circle dengan radius yang kecil dan aman - tidak akan keluar layar
+   * Pattern 2: Circular motion - ADAPTIVE SAFE CIRCLES!
+   * Smartphone: radius dan padding lebih besar
    */
   private startCircularMotion(): void {
-    const { gridWidth, gridHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, dpr } = this.gameConfig;
+    const { gridWidth, gridHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, dpr, isPortrait } = this.gameConfig;
     const centerX = this.container.x;
     const centerY = this.container.y;
     const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
 
-    // Radius KECIL dan aman - 40%-80% dari cell size (tidak terlalu besar!)
-    const minRadius = cellSize * 0.4;
-    const maxRadius = cellSize * 0.8;
+    // Adaptive radius - smartphone dapat lebih besar!
+    const minRadius = isPortrait ? cellSize * 0.5 : cellSize * 0.4;
+    const maxRadius = isPortrait ? cellSize * 1.0 : cellSize * 0.8;
     const radius = minRadius + Math.random() * (maxRadius - minRadius);
 
-    // CLAMP circle position dalam safe boundaries!
-    const safePadding = 120 * dpr;
+    // Adaptive padding - smartphone butuh lebih longgar!
+    const safePadding = isPortrait ? 80 * dpr : 120 * dpr;
     const minSafeX = gameAreaOffsetX + gridMarginLeft + safePadding;
-    const maxSafeX = gameAreaOffsetX + gridMarginLeft + gridWidth - safePadding;
+    const maxSafeX = gameAreaOffsetX + gridMarginLeft + gameWidth - safePadding;
     const minSafeY = gameAreaOffsetY + gridMarginTop + safePadding;
     const maxSafeY = gameAreaOffsetY + gridMarginTop + gameHeight - safePadding;
 
@@ -445,21 +337,22 @@ export abstract class Target {
   /**
    * Pattern 3: Figure-8 (infinity symbol) - SAFE FIGURE-8!
    * Gerakan fig-8 dengan radius KECIL dan aman
+   * ADAPTIVE - Smartphone dapat radius dan ruang lebih besar!
    */
   private startFigure8Motion(): void {
-    const { gridWidth, gridHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, dpr } = this.gameConfig;
+    const { gridWidth, gridHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, dpr, isPortrait } = this.gameConfig;
     const centerX = this.container.x;
     const centerY = this.container.y;
     const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
 
-    // Radius KECIL dan aman - 35%-70% dari cell size
-    const minRadius = cellSize * 0.35;
-    const maxRadius = cellSize * 0.7;
+    // Adaptive radius - smartphone dapat lebih besar!
+    const minRadius = isPortrait ? cellSize * 0.5 : cellSize * 0.35;
+    const maxRadius = isPortrait ? cellSize * 0.8 : cellSize * 0.7;
     const radiusX = minRadius + Math.random() * (maxRadius - minRadius); // Horizontal
     const radiusY = (minRadius * 0.5) + Math.random() * ((maxRadius * 0.5) - (minRadius * 0.5)); // Vertical (50% of horizontal)
 
-    // CLAMP figure-8 position dalam safe boundaries!
-    const safePadding = 120 * dpr;
+    // Adaptive padding - smartphone butuh lebih longgar!
+    const safePadding = isPortrait ? 80 * dpr : 120 * dpr;
     const minSafeX = gameAreaOffsetX + gridMarginLeft + safePadding;
     const maxSafeX = gameAreaOffsetX + gridMarginLeft + gridWidth - safePadding;
     const minSafeY = gameAreaOffsetY + gridMarginTop + safePadding;
@@ -509,12 +402,13 @@ export abstract class Target {
   /**
    * Pattern 4: CHAOS - SAFE CHAOS!
    * Campuran semua pola secara acak dengan BOUNDARIES yang sangat aman
+   * ADAPTIVE - Smartphone dapat ruang gerak lebih luas!
    */
   private startChaosMotion(): void {
-    const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
+    const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, isPortrait } = this.gameConfig;
 
-    // EXTRA SAFE area boundaries - padding lebih besar!
-    const padding = 100 * dpr;
+    // Adaptive padding - smartphone butuh lebih banyak ruang!
+    const padding = isPortrait ? 70 * dpr : 100 * dpr;
     const minX = gameAreaOffsetX + gridMarginLeft + padding;
     const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
     const minY = gameAreaOffsetY + gridMarginTop + padding;

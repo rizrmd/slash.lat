@@ -368,30 +368,37 @@ export class ProgressionManager {
   }
 
   private getRandomGridPosition(): { x: number; y: number } {
-    // Spawn in safe area - use column 2-4 and row 2 (avoid edges!)
-    // This ensures characters don't spawn too close to screen edges
-    const column = Math.floor(Math.random() * 3) + 2; // 2-4 (middle columns)
-    const row = Math.floor(Math.random() * 2) + 2; // 2-3 (avoid top row)
+    const { gameWidth, gameHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, isPortrait } = this.gameConfig;
 
-    // Use the same grid conversion logic as GameScene.gridToGame
-    const {
-      gridWidth,
-      gridHeight,
-      gridMarginLeft,
-      gridMarginTop,
-      safeAreaOffsetX,
-      safeAreaOffsetY,
-    } = this.gameConfig;
+    // For smartphone (portrait), spread characters across FULL VISIBLE area
+    // For laptop (landscape), use centered grid positioning
+    if (isPortrait) {
+      // Smartphone: Use FULL safe area with nice spread
+      const padding = 150; // Generous padding for smartphone
+      const minX = gameAreaOffsetX + gridMarginLeft + padding;
+      const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
+      const minY = gameAreaOffsetY + gridMarginTop + padding;
+      const maxY = gameAreaOffsetY + gridMarginTop + gameHeight - padding;
 
-    // Calculate x position (center of the character's grid cells)
-    const centerColumn = column;
-    const x = safeAreaOffsetX + gridMarginLeft + ((centerColumn - 0.5) / 5) * gridWidth;
+      return {
+        x: minX + Math.random() * (maxX - minX),
+        y: minY + Math.random() * (maxY - minY)
+      };
+    } else {
+      // Laptop: Use grid system (columns 2-4, rows 2-3)
+      const column = Math.floor(Math.random() * 3) + 2; // 2-4 (middle columns)
+      const row = Math.floor(Math.random() * 2) + 2; // 2-3 (avoid top row)
 
-    // Calculate y position (center of the character's grid cells)
-    const centerRow = row;
-    const y = safeAreaOffsetY + gridMarginTop + ((centerRow - 0.5) / 3) * gridHeight;
+      const { gridWidth, gridHeight } = this.gameConfig;
 
-    return { x, y };
+      const centerColumn = column;
+      const x = gameAreaOffsetX + gridMarginLeft + ((centerColumn - 0.5) / 5) * gridWidth;
+
+      const centerRow = row;
+      const y = gameAreaOffsetY + gridMarginTop + ((centerRow - 0.5) / 3) * gridHeight;
+
+      return { x, y };
+    }
   }
 
   private spawnEnemy(characterClass: CharacterClass, position: { x: number; y: number }): void {
