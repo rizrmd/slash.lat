@@ -48,6 +48,7 @@ export class GameScene extends Scene {
   private hpBarFill?: Phaser.GameObjects.Graphics;
   private hpText?: Phaser.GameObjects.Text;
   private coinText?: Phaser.GameObjects.Text;
+  private levelProgressText?: Phaser.GameObjects.Text; // Show next level target
   private coinSprite?: Phaser.GameObjects.Sprite;
   private coinCounterX: number = 0;
   private coinCounterY: number = 0;
@@ -1011,6 +1012,54 @@ export class GameScene extends Scene {
     this.coinSprite.on('pointerdown', () => {
       this.cycleBackground();
     });
+
+    // Level Progress Text (show next level target)
+    this.updateLevelProgressText();
+  }
+
+  /**
+   * Update level progress text to show target for next level
+   */
+  updateLevelProgressText(): void {
+    if (!this.levelProgressText) {
+      // Create the text if it doesn't exist
+      const { canvasWidth, dpr } = this.gameConfig;
+      const padding = 20 * dpr;
+
+      this.levelProgressText = this.add
+        .text(this.coinCounterX, this.coinCounterY + 25 * dpr, '', {
+          fontFamily: "Jura, sans-serif",
+          fontSize: `${12 * dpr}px`,
+          color: "#AAAAAA",
+          fontStyle: "normal",
+          stroke: "#000000",
+          strokeThickness: 2 * dpr,
+        })
+        .setOrigin(1, 0) // Top-right origin
+        .setDepth(100);
+      this.uiLayer!.add(this.levelProgressText);
+    }
+
+    // Find next level target
+    let nextTarget = null;
+    for (const levelData of this.backgroundLevels) {
+      if (levelData.coins > this.coins) {
+        nextTarget = levelData;
+        break;
+      }
+    }
+
+    // Update text based on current progress
+    if (nextTarget) {
+      // Show progress to next level
+      const progress = Math.min(100, (this.coins / nextTarget.coins) * 100);
+      this.levelProgressText.setText(`Next Level: ${nextTarget.coins.toLocaleString()} coins (${progress.toFixed(0)}%)`);
+      this.levelProgressText.setColor('#FFD700'); // Gold color
+    } else {
+      // Max level reached
+      this.levelProgressText.setText('MAX LEVEL! 🎉');
+      this.levelProgressText.setColor('#00FF00'); // Green color
+    }
   }
 
   updateHPBar(): void {
@@ -1078,6 +1127,9 @@ export class GameScene extends Scene {
         this.coinSprite.setX(coinSpriteX);
       }
     }
+
+    // Update level progress text
+    this.updateLevelProgressText();
 
     // Save total coins to localStorage
     this.saveProgress();
@@ -1206,12 +1258,12 @@ export class GameScene extends Scene {
 
   /**
    * Generate coin-based progression config (respects player level)
-   * Only spawns enemies that match the player's current level/coins
+   * UNLIMITED continuous spawn - enemies keep coming until player reaches target coins
    */
   getCoinBasedProgressionConfig() {
     const level = this.calculatePlayerLevel();
 
-    // Level 1 (0-9,999 coins): Only OrangeBot
+    // Level 1 (0-9,999 coins): Only OrangeBot - Easy warmup
     if (level === 1) {
       return {
         mode: "continuous",
@@ -1220,15 +1272,15 @@ export class GameScene extends Scene {
             {
               startTime: 0,
               enemies: [{ characterClass: OrangeBot, weight: 1 }],
-              maxConcurrent: 2,
-              spawnInterval: 3000,
+              maxConcurrent: 3, // Increased from 2
+              spawnInterval: 2500, // Faster spawn (was 3000ms)
             },
           ],
         },
       };
     }
 
-    // Level 2 (10,000-24,999 coins): OrangeBot + LeafBot
+    // Level 2 (10,000-24,999 coins): OrangeBot + LeafBot - Medium difficulty
     if (level === 2) {
       return {
         mode: "continuous",
@@ -1237,18 +1289,18 @@ export class GameScene extends Scene {
             {
               startTime: 0,
               enemies: [
-                { characterClass: OrangeBot, weight: 7 },
-                { characterClass: LeafBot, weight: 3 },
+                { characterClass: OrangeBot, weight: 6 },
+                { characterClass: LeafBot, weight: 4 },
               ],
-              maxConcurrent: 3,
-              spawnInterval: 2500,
+              maxConcurrent: 4, // Increased from 3
+              spawnInterval: 2000, // Faster spawn (was 2500ms)
             },
           ],
         },
       };
     }
 
-    // Level 3 (25,000-49,999 coins): OrangeBot + LeafBot + FlyBot
+    // Level 3 (25,000-49,999 coins): All enemy types - Hard
     if (level === 3) {
       return {
         mode: "continuous",
@@ -1257,19 +1309,19 @@ export class GameScene extends Scene {
             {
               startTime: 0,
               enemies: [
-                { characterClass: OrangeBot, weight: 5 },
-                { characterClass: LeafBot, weight: 3 },
+                { characterClass: OrangeBot, weight: 4 },
+                { characterClass: LeafBot, weight: 4 },
                 { characterClass: FlyBot, weight: 2 },
               ],
-              maxConcurrent: 4,
-              spawnInterval: 2000,
+              maxConcurrent: 5, // Increased from 4
+              spawnInterval: 1800, // Faster spawn (was 2000ms)
             },
           ],
         },
       };
     }
 
-    // Level 4 (50,000+ coins): Master Level - all enemies with increased difficulty
+    // Level 4 (50,000+ coins): Master Level - INTENSE!
     return {
       mode: "continuous",
       continuousConfig: {
@@ -1277,12 +1329,12 @@ export class GameScene extends Scene {
           {
             startTime: 0,
             enemies: [
-              { characterClass: OrangeBot, weight: 3 },
-              { characterClass: LeafBot, weight: 4 },
+              { characterClass: OrangeBot, weight: 2 },
+              { characterClass: LeafBot, weight: 5 },
               { characterClass: FlyBot, weight: 3 },
             ],
-            maxConcurrent: 5,
-            spawnInterval: 1800,
+            maxConcurrent: 6, // Increased from 5 - MORE CHAOS!
+            spawnInterval: 1500, // Very fast spawn (was 1800ms)
           },
         ],
       },
