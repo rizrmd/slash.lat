@@ -21,10 +21,10 @@ export abstract class Target {
   protected audioManager: AudioManager;
   protected hp: number;
   protected maxHp: number;
-  public hpBarFill?: Phaser.GameObjects.Graphics;
+  public hpBarBackground?: Phaser.GameObjects.Graphics; // Public for camera ignore
+  public hpBarFill?: Phaser.GameObjects.Graphics; // Public for camera ignore
   protected hpBarVisible: boolean = false;
-  private particleEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
-  private breathingTween?: Phaser.Tweens.Tween;
+  private particleEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = []; // Track for cleanup
 
   constructor(config: TargetConfig) {
     this.scene = config.scene;
@@ -42,13 +42,15 @@ export abstract class Target {
     this.image = this.scene.add.sprite(0, 0, this.getAssetKey());
 
     // Scale to desired size while maintaining aspect ratio
-    // Grid dimensions are already in game coordinates (no DPR multiplication needed)
+    // Use frame.height for consistent sizing across different aspect ratios
+    // Both orange-bot (513x720) and leaf-bot (754x720) have same height, so this makes them visually consistent
     const imageHeight = this.image.frame.height;
     const imageWidth = this.image.frame.width;
 
-    // Get grid dimensions from config (already properly scaled)
-    const gridWidth = this.gameConfig.gridWidth;
-    const gridHeight = this.gameConfig.gridHeight;
+    // Calculate default size based on grid dimensions
+    // Each character spans 'w' columns and 'h' rows
+    const gridWidth = this.gameConfig.gridWidth ?? (this.gameConfig.gameWidth * this.gameConfig.dpr);
+    const gridHeight = this.gameConfig.gridHeight ?? (this.gameConfig.gameHeight * this.gameConfig.dpr);
 
     const size = this.getSize();
     const targetWidth = (gridWidth / 5) * size.w;
@@ -65,224 +67,58 @@ export abstract class Target {
     this.slashDamage = this.scene.add.graphics();
     this.slashDamage.setVisible(false);
 
-    // Create HP bar
+    // Create HP bar (initially hidden)
+    const dpr = this.gameConfig.dpr;
+    const barWidth = this.image.width * finalScale;
+    const barHeight = 6 * dpr;
+    const barY = (this.image.height * finalScale) / 2 + 15 * dpr;
+
+    this.hpBarBackground = this.scene.add.graphics();
+    this.hpBarBackground.setVisible(false);
+
     this.hpBarFill = this.scene.add.graphics();
     this.hpBarFill.setVisible(false);
+
+    // Draw initial HP bar
     this.updateHpBar();
 
     // Add all to container
-    this.container.add([this.image, this.slashDamage, this.hpBarFill]);
+    this.container.add([this.image, this.slashDamage, this.hpBarBackground, this.hpBarFill]);
 
     // Extract image data for pixel-perfect collision
     this.extractImageData();
 
     // Store final position
-    const finalX = config.x;
     const finalY = config.y;
 
-    // ========================================================================
-    // DYNAMIC ENTRANCE ANIMATION - Randomized movement from multiple directions
-    // ========================================================================
-
-    // Random entrance direction: 0=top, 1=right, 2=bottom, 3=left, 4-7=diagonals
-    const entranceDirection = Math.floor(Math.random() * 8);
-
-    // Random speed: faster (600ms) to slower (1200ms)
-    const entranceDuration = 600 + Math.random() * 600;
-
-    // Random easing for smooth SOLID entrance (no bouncy effects)
-    const easingOptions = [
-      "Cubic.easeOut",
-      "Quad.easeOut",
-      "Sine.easeOut"
-    ];
-    const randomEasing = easingOptions[Math.floor(Math.random() * easingOptions.length)];
-
-    // Calculate start position based on direction (off-screen)
-    const { canvasWidth, canvasHeight } = this.gameConfig;
-    const offsetAmount = Math.min(canvasWidth, canvasHeight) * 0.5; // 50% of screen size
-
-    let startX = finalX;
-    let startY = finalY;
-
-    // NO ROTATION - character stays upright throughout entrance
-    switch (entranceDirection) {
-      case 0: // From top
-        startY = finalY - offsetAmount;
-        break;
-      case 1: // From right
-        startX = finalX + offsetAmount;
-        break;
-      case 2: // From bottom
-        startY = finalY + offsetAmount;
-        break;
-      case 3: // From left
-        startX = finalX - offsetAmount;
-        break;
-      case 4: // From top-left diagonal
-        startX = finalX - offsetAmount * 0.7;
-        startY = finalY - offsetAmount * 0.7;
-        break;
-      case 5: // From top-right diagonal
-        startX = finalX + offsetAmount * 0.7;
-        startY = finalY - offsetAmount * 0.7;
-        break;
-      case 6: // From bottom-left diagonal
-        startX = finalX - offsetAmount * 0.7;
-        startY = finalY + offsetAmount * 0.7;
-        break;
-      case 7: // From bottom-right diagonal
-        startX = finalX + offsetAmount * 0.7;
-        startY = finalY + offsetAmount * 0.7;
-        break;
-    }
-
-    // Set initial state - NO ROTATION, character is upright
-    this.container.setPosition(startX, startY);
-    this.container.setScale(0.1); // Start very small
+    // Start container small, transparent, and lower (simulating distance in perspective)
+    this.container.setScale(0.3);
     this.container.setAlpha(0);
-    this.container.setRotation(0); // Always start upright
+    this.container.setY(config.y + 50); // Start lower to simulate depth
 
-    // Calculate target scale based on final Y position (depth effect)
-    const normalizedY = finalY / canvasHeight;
-    const minScale = 0.7;
-    const maxScale = 1.3;
-    const targetScale = minScale + (normalizedY * (maxScale - minScale));
-
-    // Animate entrance with dynamic movement - NO ROTATION
+    // Animate to create perspective effect (coming from far to near)
     this.scene.tweens.add({
       targets: this.container,
-      x: finalX,
-      y: finalY,
-      scale: targetScale,
-      alpha: 1,
-      duration: entranceDuration,
-      ease: randomEasing,
+      y: finalY, // Move down to final position
+      scale: 1, // Grow to full size
+      alpha: 1, // Fade in to full opacity
+      duration: 1500, // Reduced from 10000ms (10s) to 1500ms (1.5s) for faster gameplay
+      ease: "Cubic.easeInOut", // Accelerates as it approaches (more realistic)
       onUpdate: (tween) => {
-        // Update scale based on current Y position during entrance
-        this.updateScaleForDepth();
-
-        // Show HP bar ONLY when entrance is COMPLETE (alpha reaches 1.0)
-        // Changed from 0.8 to 1.0 to prevent early appearance
-        if (this.container.alpha >= 1.0 && !this.hpBarVisible) {
+        // Show HP bar when alpha reaches 0.5 (hittable state) - lowered from 0.8 for faster gameplay
+        if (this.container.alpha >= 0.5 && !this.hpBarVisible) {
           this.showHpBar();
         }
       },
       onComplete: () => {
-        // Start continuous breathing effect for depth/zoom
-        this.startBreathingEffect();
-        // DISABLE wandering temporarily to focus on attack effect
-        // this.startRandomWandering();
         // Notify subclasses when fully visible
         this.onFullyVisible();
       },
     });
   }
 
-  /**
-   * Update character scale based on Y position (pseudo-3D depth effect)
-   * Higher Y (lower on screen) = closer = bigger (zoom in)
-   * Lower Y (higher on screen) = further = smaller (zoom out)
-   */
-  private updateScaleForDepth(): void {
-    const { canvasHeight } = this.gameConfig;
-    const normalizedY = this.container.y / canvasHeight;
-    const minScale = 0.7;
-    const maxScale = 1.3;
-    const depthScale = minScale + (normalizedY * (maxScale - minScale));
-    this.container.setScale(depthScale);
-  }
-
-  /**
-   * Start DYNAMIC 50-phase breathing/zoom effect - SUPER DYNAMIC
-   * Uses chained tweens for 50 different waypoints with zoom in/out pattern
-   * Each character has 50 unique movements - completely random and free!
-   */
-  private startBreathingEffect(): void {
-    // Don't create if already exists
-    if (this.breathingTween) return;
-
-    // Get base scale from current position
-    const { canvasHeight, canvasWidth, gameAreaOffsetY, gameAreaHeight } = this.gameConfig;
-    const normalizedY = this.container.y / canvasHeight;
-    const baseScale = 0.7 + (normalizedY * 0.6);
-
-    const attackScale = baseScale * 3.0; // 3x bigger
-    const moveDuration = 800 + Math.random() * 400; // 0.8-1.2s per phase (faster)
-
-    // Store BASE position
-    const baseX = this.container.x;
-    const baseY = this.container.y;
-
-    // Get character size for bounds checking
-    const size = this.getSize();
-    const charWidth = this.image.displayWidth;
-    const charHeight = this.image.displayHeight;
-
-    // Calculate safe bounds (keep entire character on screen)
-    const padding = Math.max(charWidth, charHeight) * 0.8; // 80% padding
-    const minY = gameAreaOffsetY + padding;
-    const maxY = gameAreaOffsetY + gameAreaHeight - padding;
-    const minX = padding;
-    const maxX = canvasWidth - padding;
-
-    // Constrain offsets to keep character within bounds
-    const maxOffsetUp = Math.min(100, Math.max(0, baseY - minY));
-    const maxOffsetDown = Math.min(100, Math.max(0, maxY - baseY));
-    const maxOffsetLeft = Math.min(120, Math.max(0, baseX - minX));
-    const maxOffsetRight = Math.min(120, Math.max(0, maxX - baseX));
-
-    // Generate 50 unique waypoints for MAXIMUM DYNAMIC pattern
-    const waypoints: Array<{x: number, y: number, scale: number}> = [];
-    for (let i = 0; i < 50; i++) {
-      // Random zoom pattern (completely random, not fixed)
-      const isZoomIn = Math.random() > 0.5;
-
-      // Calculate random offset within safe bounds (FULL RANGE)
-      const offsetX = (Math.random() - 0.5) * 2 * Math.min(maxOffsetLeft, maxOffsetRight);
-      const offsetY = (Math.random() - 0.5) * 2 * Math.min(maxOffsetUp, maxOffsetDown);
-
-      // Clamp to safe bounds
-      const targetX = Math.max(minX, Math.min(maxX, baseX + offsetX));
-      const targetY = Math.max(minY, Math.min(maxY, baseY + offsetY));
-
-      waypoints.push({
-        x: targetX,
-        y: targetY,
-        scale: isZoomIn ? attackScale : baseScale
-      });
-    }
-
-    // Use a counter to track current waypoint
-    let currentWaypoint = 0;
-
-    // Create a single tween that chains through all 50 waypoints
-    const moveToNextWaypoint = () => {
-      const target = waypoints[currentWaypoint];
-
-      this.scene.tweens.add({
-        targets: this.container,
-        x: target.x,
-        y: target.y,
-        scale: target.scale,
-        duration: moveDuration,
-        ease: "Sine.easeInOut",
-        onComplete: () => {
-          currentWaypoint = (currentWaypoint + 1) % waypoints.length;
-          moveToNextWaypoint(); // Move to next waypoint
-        },
-        persist: true
-      });
-    };
-
-    // Start the chain
-    moveToNextWaypoint();
-    this.breathingTween = { destroy: () => {} }; // Dummy object for cleanup
-  }
-
   protected onFullyVisible(): void {
     // Override in subclasses to handle when character reaches 100% opacity
-    // Subclasses should call super.onFullyVisible() if they want to keep default behavior
   }
 
   extractImageData(): void {
@@ -588,53 +424,49 @@ export abstract class Target {
   showHpBar(): void {
     if (!this.hpBarVisible) {
       this.hpBarVisible = true;
+      this.hpBarBackground?.setVisible(true);
       this.hpBarFill?.setVisible(true);
     }
   }
 
   updateHpBar(): void {
-    if (!this.hpBarFill) return;
+    if (!this.hpBarFill || !this.hpBarBackground) return;
 
-    const { isLandscape, gameAreaOffsetY } = this.gameConfig;
+    const dpr = this.gameConfig.dpr;
 
-    // HP bar width - MORE COMPACT
+    // HP bar width should be proportional to character width (80% of character width)
     const characterWidth = this.image.displayWidth;
-    const barWidth = characterWidth * 0.35; // 35% of character width (very compact)
+    const barWidth = characterWidth * 0.8;
 
-    // HP bar is just a thin colored line (account for container scale)
-    const containerScale = this.container.scaleX || 1;
-    const barHeight = 0.3 / containerScale; // Counter-scale to keep it thin
+    const barHeight = 6 * dpr;
+    const barY = -this.image.displayHeight / 2 - 30 * dpr;
 
-    // Calculate HP bar position
-    const baseOffset = isLandscape ? 2 : 2;
-    let barY = -this.image.displayHeight / 2 - baseOffset;
+    // Clear and redraw background
+    this.hpBarBackground.clear();
 
-    // Only constrain if HP bar would go above game area
-    const hpBarWorldY = this.container.y + barY;
-    const minAllowedY = gameAreaOffsetY + 5;
-    if (hpBarWorldY < minAllowedY) {
-      // HP bar would be above game area, push it down
-      barY = minAllowedY - this.container.y;
-    }
+    // Draw white border
+    this.hpBarBackground.lineStyle(2 * dpr, 0xffffff, 1);
+    this.hpBarBackground.strokeRect(-barWidth / 2 - 1 * dpr, barY - 1 * dpr, barWidth + 2 * dpr, barHeight + 2 * dpr);
 
-    // Clear and redraw
+    // Draw black background
+    this.hpBarBackground.fillStyle(0x000000, 0.7);
+    this.hpBarBackground.fillRect(-barWidth / 2, barY, barWidth, barHeight);
+
+    // Clear and redraw fill
     this.hpBarFill.clear();
 
     // Calculate HP percentage
     const hpPercent = this.hp / this.maxHp;
 
-    // Dynamic color based on HP: Green -> Orange -> Red
-    let finalColor: number;
-    if (hpPercent > 0.5) {
-      finalColor = 0x00ff00; // Green
-    } else if (hpPercent > 0.25) {
-      finalColor = 0xff8800; // Orange
-    } else {
-      finalColor = 0xff0000; // Red
+    // Color based on HP percentage
+    let color = 0x00ff00; // Green
+    if (hpPercent < 0.3) {
+      color = 0xff0000; // Red
+    } else if (hpPercent < 0.6) {
+      color = 0xffaa00; // Orange
     }
 
-    // Draw just the colored HP line
-    this.hpBarFill.fillStyle(finalColor, 1);
+    this.hpBarFill.fillStyle(color, 1);
     this.hpBarFill.fillRect(-barWidth / 2, barY, barWidth * hpPercent, barHeight);
   }
 
@@ -797,18 +629,30 @@ export abstract class Target {
       this.slashDamage,
     ];
 
+    if (this.hpBarBackground) objects.push(this.hpBarBackground);
     if (this.hpBarFill) objects.push(this.hpBarFill);
+
+    // Add all tracked particle emitters
     objects.push(...this.particleEmitters);
 
     return objects;
   }
 
   destroy(): void {
+    // Stop all tweens targeting this container
     this.scene.tweens.killTweensOf(this.container);
+
+    // Clear and destroy graphics
     this.slashDamage.clear();
     this.slashDamage.destroy();
+
+    // Clear and destroy HP bar
+    this.hpBarBackground?.clear();
+    this.hpBarBackground?.destroy();
     this.hpBarFill?.clear();
     this.hpBarFill?.destroy();
+
+    // Destroy container and all children
     this.container.destroy();
   }
 
