@@ -1080,83 +1080,10 @@ export class GameScene extends Scene {
    * - Parallax effect on pointer move
    */
   setupAnimatedBackground(): void {
-    if (!this.backgroundContainer || !this.gameBackground) return;
-
-    const { canvasWidth, canvasHeight, dpr } = this.gameConfig;
-
-    // 1. BREATHING EFFECT - Subtle zoom in/out (lebih slow untuk performa)
-    this.tweens.add({
-      targets: this.backgroundContainer,
-      scale: 1.03, // 3% zoom (lebih subtle untuk hemat battery)
-      duration: 10000, // 10 seconds (lebih slow = lebih hemat)
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.easeInOut",
-    });
-
-    // 2. FLOATING PARTICLES - Create subtle star/dust particles
-    // Create particle texture programmatically
-    const particleGraphics = this.make.graphics({ x: 0, y: 0, add: false });
-    const particleSize = 3 * dpr; // Sedikit lebih kecil
-    particleGraphics.fillStyle(0xFFFFFF, 0.5); // White dengan 50% opacity (lebih hemat)
-    particleGraphics.fillCircle(particleSize, particleSize, particleSize);
-    particleGraphics.generateTexture('star-particle', particleSize * 2, particleSize * 2);
-
-    // Create particle emitter dengan frekuensi lebih rendah untuk hemat performa
-    this.backgroundParticles = this.add.particles(0, 0, 'star-particle', {
-      x: { min: 0, max: canvasWidth * dpr },
-      y: { min: -50, max: canvasHeight * dpr * 0.2 }, // Only top 20% (lebih sedikit)
-      lifespan: 12000, // 12 seconds (lebih lama = lebih hemat)
-      speedY: { min: 10, max: 25 }, // Lebih slow
-      speedX: { min: -5, max: 5 }, // Less horizontal drift
-      scale: { start: 0.3, end: 0 },
-      alpha: { start: 0.2, end: 0 }, // Lebih transparent
-      frequency: 800, // Lebih jarang - setiap 800ms (hemat performa!)
-      quantity: 1,
-      blendMode: 'ADD',
-    });
-
-    // Add particles to background container for proper depth
-    this.backgroundContainer.add(this.backgroundParticles);
-
-    // 3. PARALLAX EFFECT - Move background slightly on pointer move (optimized with throttling)
-    let lastParallaxUpdate = 0;
-    const PARALLAX_THROTTLE = 50; // Update at most every 50ms
-
-    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
-      if (!this.backgroundContainer) return;
-
-      const now = Date.now();
-      if (now - lastParallaxUpdate < PARALLAX_THROTTLE) return; // Throttle updates
-      lastParallaxUpdate = now;
-
-      const { canvasWidth, canvasHeight } = this.gameConfig;
-      const centerX = canvasWidth / 2;
-      const centerY = canvasHeight / 2;
-
-      // Calculate offset from center (normalized -1 to 1)
-      const offsetX = (pointer.x - centerX) / centerX;
-      const offsetY = (pointer.y - centerY) / centerY;
-
-      // Apply parallax (subtle - max 1% movement for better performance)
-      const parallaxX = offsetX * 10 * dpr;
-      const parallaxY = offsetY * 10 * dpr;
-
-      // Kill existing parallax tween before creating new one
-      this.tweens.killTweensOf(this.backgroundContainer, 'x');
-      this.tweens.killTweensOf(this.backgroundContainer, 'y');
-
-      // Smooth transition to new position
-      this.tweens.add({
-        targets: this.backgroundContainer,
-        x: (canvasWidth * dpr) / 2 + parallaxX,
-        y: (canvasHeight * dpr) / 2 + parallaxY,
-        duration: 300,
-        ease: "Quad.easeOut",
-      });
-    });
-
-    console.log("✨ Animated background effects enabled (optimized for mobile)");
+    // DISABLED - Background animations cause lag
+    // No breathing effect, no particles, no parallax
+    // Static background only for best performance
+    console.log("⚠️ Background animations DISABLED for performance");
   }
 
   updateHPBar(): void {
