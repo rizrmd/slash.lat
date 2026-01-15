@@ -301,8 +301,8 @@ export abstract class Target {
   }
 
   /**
-   * Start LIGHT wandering - only 5 waypoints with longer duration
-   * Much lighter than 50-waypoint breathing effect
+   * Start FAST wandering - 20 waypoints with fast movement
+   * Characters move quickly around their spawn area
    */
   private startLightWandering(): void {
     const { gridWidth, gridHeight } = this.gameConfig;
@@ -311,13 +311,13 @@ export abstract class Target {
     const baseX = this.container.x;
     const baseY = this.container.y;
 
-    // Generate only 5 waypoints around current position
+    // Generate 20 waypoints for more dynamic movement
     const waypoints: Array<{ x: number; y: number }> = [];
-    for (let i = 0; i < 5; i++) {
-      // Movement radius: 60% of grid cell size - VISIBLE movement
-      const moveRadius = Math.min(gridWidth / 5, gridHeight / 3) * 0.6;
-      const angle = (Math.PI * 2 * i) / 5; // Spread in circle
-      const distance = moveRadius * (0.7 + Math.random() * 0.5);
+    for (let i = 0; i < 20; i++) {
+      // Movement radius: 80% of grid cell size - LARGE visible movement
+      const moveRadius = Math.min(gridWidth / 5, gridHeight / 3) * 0.8;
+      const angle = (Math.PI * 2 * i) / 20; // Spread in full circle
+      const distance = moveRadius * (0.5 + Math.random() * 0.8);
 
       waypoints.push({
         x: baseX + Math.cos(angle) * distance,
@@ -325,11 +325,11 @@ export abstract class Target {
       });
     }
 
-    console.log(`🚶 Starting wandering: base=${baseX.toFixed(0)},${baseY.toFixed(0)}, radius=${waypoints.length} waypoints`);
+    console.log(`🚶 Starting FAST wandering: base=${baseX.toFixed(0)},${baseY.toFixed(0)}, ${waypoints.length} waypoints`);
 
-    // Move through waypoints with longer duration
+    // Move through waypoints quickly
     let currentWaypoint = 0;
-    const moveDuration = 1500 + Math.random() * 1000; // 1.5-2.5 seconds per waypoint (faster)
+    const moveDuration = 600 + Math.random() * 400; // 0.6-1.0 seconds per waypoint (FAST!)
 
     const moveToNext = () => {
       const target = waypoints[currentWaypoint];
@@ -339,7 +339,7 @@ export abstract class Target {
         x: target.x,
         y: target.y,
         duration: moveDuration,
-        ease: "Sine.easeInOut",
+        ease: "Quad.easeInOut",
         onComplete: () => {
           currentWaypoint = (currentWaypoint + 1) % waypoints.length;
           moveToNext();
