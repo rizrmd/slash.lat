@@ -53,6 +53,7 @@ const gameConfig: GameConfig = {
   maxGameWidth,
   gameWidth,
   canvasWidth,
+  canvasHeight: gameHeight, // canvasHeight = gameHeight (window.innerHeight)
   gameHeight,
   gameAreaWidth,
   gameAreaOffsetX,

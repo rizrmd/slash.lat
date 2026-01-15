@@ -27,6 +27,7 @@ export interface GameConfig {
     // Game world dimensions (logical coordinate space)
     gameWidth: number; // Always 400px
     canvasWidth: number; // Screen width (e.g., 1080px)
+    canvasHeight: number; // Screen height (same as gameHeight)
     gameHeight: number; // Screen height (e.g., 1920px)
 
     // Game play area (where characters can spawn)
