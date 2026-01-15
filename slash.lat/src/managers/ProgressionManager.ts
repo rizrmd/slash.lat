@@ -433,11 +433,17 @@ export class ProgressionManager {
     const minRow = 1;
     const row = Math.floor(Math.random() * (maxRow - minRow + 1)) + minRow;
 
+    // DEBUG: Log grid position
+    console.log(`[ProgressionManager] Grid: col=${column}, row=${row} (size: ${size.w}x${size.h})`);
+
     // Use the grid conversion logic passed from GameScene
     const { x, y } = this.events.gridToGame(column, row, size.w, size.h);
 
+    // DEBUG: Log converted position
+    console.log(`[ProgressionManager] gridToGame result: x=${x.toFixed(0)}, y=${y.toFixed(0)}`);
+
     // SMALL RANDOM OFFSET for variety while staying within safe area
-    const { isLandscape, gridWidth, gridHeight, gameAreaOffsetY, gameAreaHeight, canvasWidth } = this.gameConfig;
+    const { gridWidth, gridHeight } = this.gameConfig;
 
     // Calculate safe bounds
     const cellWidth = gridWidth / 5;
@@ -450,20 +456,17 @@ export class ProgressionManager {
     let randomOffsetX = (Math.random() - 0.5) * 2 * maxOffsetX;
     let randomOffsetY = (Math.random() - 0.5) * 2 * maxOffsetY;
 
-    // Clamp to safe area bounds
+    // CRITICAL FIX: Don't clamp positions - gridToGame already calculates valid positions
+    // The old clamping logic was using canvasWidth which is wrong (should use safe area)
+    // gridToGame positions are already correct, just add small offset for variety
     const finalX = x + randomOffsetX;
     const finalY = y + randomOffsetY;
 
-    // Ensure within game area (with margin for character size)
-    const margin = Math.max(cellWidth, cellHeight) * 0.5;
-    const minX = margin;
-    const maxX = canvasWidth - margin;
-    const minY = gameAreaOffsetY + margin;
-    const maxY = gameAreaOffsetY + gameAreaHeight - margin;
+    console.log(`[ProgressionManager] Final position: x=${finalX.toFixed(0)}, y=${finalY.toFixed(0)} (offset: ${randomOffsetX.toFixed(1)}, ${randomOffsetY.toFixed(1)})`);
 
     return {
-      x: Math.max(minX, Math.min(maxX, finalX)),
-      y: Math.max(minY, Math.min(maxY, finalY)),
+      x: finalX,
+      y: finalY,
     };
   }
 
