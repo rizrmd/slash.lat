@@ -336,27 +336,36 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 1: Random waypoints - completely unpredictable
+   * Pattern 1: Random waypoints - FULL SCREEN FREEDOM!
+   * Karakter bisa bergerak ke mana saja dalam layar
    */
   private startRandomWaypoints(): void {
-    const { gameAreaWidth, gameAreaHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
+    const { gameWidth, gameHeight, dpr } = this.gameConfig;
 
-    const minX = gameAreaOffsetX + gridMarginLeft + 50;
-    const maxX = gameAreaOffsetX + gridMarginLeft + gameAreaWidth - 50;
-    const minY = gameAreaOffsetY + gridMarginTop + 50;
-    const maxY = gameAreaOffsetY + gridMarginTop + gameAreaHeight - 50;
+    // Gunakan FULL screen untuk movement - bukan hanya game area!
+    const padding = 80 * dpr;
+    const minX = padding;
+    const maxX = (gameWidth * dpr) - padding;
+    const minY = padding;
+    const maxY = (gameHeight * dpr) - padding;
 
     const moveToRandom = () => {
       const targetX = minX + Math.random() * (maxX - minX);
       const targetY = minY + Math.random() * (maxY - minY);
-      const duration = 500 + Math.random() * 1000; // 0.5-1.5 seconds (random speed)
+
+      // Lebih cepat dan dinamis - 0.3-0.8 seconds
+      const duration = 300 + Math.random() * 500;
+
+      // Random easing untuk variasi
+      const easings = ['Sine.easeInOut', 'Quad.easeInOut', 'Cubic.easeInOut', 'Circ.easeOut'];
+      const randomEase = easings[Math.floor(Math.random() * easings.length)];
 
       this.scene.tweens.add({
         targets: this.container,
         x: targetX,
         y: targetY,
         duration: duration,
-        ease: Math.random() > 0.5 ? 'Sine.easeInOut' : 'Quad.easeInOut',
+        ease: randomEase,
         onComplete: () => moveToRandom(),
       });
     };
@@ -365,18 +374,21 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 2: Circular motion dengan radius acak
+   * Pattern 2: Circular motion - DYNAMIC CIRCLES!
+   * Circle dengan radius besar dan gerak cepat
    */
   private startCircularMotion(): void {
-    const { gridWidth, gridHeight } = this.gameConfig;
+    const { gameWidth, gameHeight, dpr } = this.gameConfig;
     const centerX = this.container.x;
     const centerY = this.container.y;
-    const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
 
-    // Random radius - kadang kecil, kadang besar
-    const radius = cellSize * (0.3 + Math.random() * 1.5); // 30%-180% dari cell
+    // Radius lebih besar untuk lebih dinamis - 100-250px
+    const minRadius = 100 * dpr;
+    const maxRadius = 250 * dpr;
+    const radius = minRadius + Math.random() * (maxRadius - minRadius);
+
     const clockwise = Math.random() > 0.5;
-    const arcPoints = 10 + Math.floor(Math.random() * 10); // 10-19 points (random!)
+    const arcPoints = 12 + Math.floor(Math.random() * 12); // 12-23 points (more = smoother!)
 
     const waypoints: Array<{ x: number; y: number }> = [];
     for (let i = 0; i < arcPoints; i++) {
@@ -392,7 +404,9 @@ export abstract class Target {
     let currentWaypoint = 0;
     const moveToNext = () => {
       const target = waypoints[clockwise ? currentWaypoint : (waypoints.length - 1 - currentWaypoint)];
-      const duration = 400 + Math.random() * 800;
+
+      // Lebih cepat - 0.3-0.6s per point
+      const duration = 300 + Math.random() * 300;
 
       this.scene.tweens.add({
         targets: this.container,
@@ -411,19 +425,22 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 3: Figure-8 (infinity symbol)
+   * Pattern 3: Figure-8 (infinity symbol) - SMOOTH CURVES!
+   * Gerakan fig-8 dengan radius besar dan smooth
    */
   private startFigure8Motion(): void {
-    const { gridWidth, gridHeight } = this.gameConfig;
+    const { gameWidth, gameHeight, dpr } = this.gameConfig;
     const centerX = this.container.x;
     const centerY = this.container.y;
-    const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
 
-    const radiusX = cellSize * (0.5 + Math.random() * 1.0); // Horizontal radius
-    const radiusY = cellSize * (0.3 + Math.random() * 0.8); // Vertical radius (lebih kecil)
+    // Radius besar untuk fig-8 yang dinamis - 80-180px
+    const minRadius = 80 * dpr;
+    const maxRadius = 180 * dpr;
+    const radiusX = minRadius + Math.random() * (maxRadius - minRadius); // Horizontal
+    const radiusY = (minRadius * 0.6) + Math.random() * ((maxRadius * 0.6) - (minRadius * 0.6)); // Vertical (60% of horizontal)
 
     const waypoints: Array<{ x: number; y: number }> = [];
-    const points = 16;
+    const points = 20; // More points for smoother figure-8
 
     for (let i = 0; i < points; i++) {
       const t = (Math.PI * 2 * i) / points;
@@ -439,7 +456,9 @@ export abstract class Target {
     let currentWaypoint = 0;
     const moveToNext = () => {
       const target = waypoints[currentWaypoint];
-      const duration = 500 + Math.random() * 700;
+
+      // Cepat dan smooth - 0.3-0.5s per point
+      const duration = 300 + Math.random() * 200;
 
       this.scene.tweens.add({
         targets: this.container,
@@ -458,57 +477,55 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 4: CHAOS - campuran semua pola secara acak
+   * Pattern 4: CHAOS - TOTAL RANDOMNESS!
+   * Campuran semua pola secara acak dengan FULL SCREEN access
    */
   private startChaosMotion(): void {
-    const { gameAreaWidth, gameAreaHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, gridWidth, gridHeight } = this.gameConfig;
+    const { gameWidth, gameHeight, dpr } = this.gameConfig;
 
-    const centerX = this.container.x;
-    const centerY = this.container.y;
-    const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
+    const padding = 80 * dpr;
+    const minX = padding;
+    const maxX = (gameWidth * dpr) - padding;
+    const minY = padding;
+    const maxY = (gameHeight * dpr) - padding;
 
     const moveChaos = () => {
       // Random setiap kali: pilih pola berbeda!
       const chaosType = Math.random();
 
-      if (chaosType < 0.3) {
-        // Random jump
-        const minX = gameAreaOffsetX + gridMarginLeft + 50;
-        const maxX = gameAreaOffsetX + gridMarginLeft + gameAreaWidth - 50;
-        const minY = gameAreaOffsetY + gridMarginTop + 50;
-        const maxY = gameAreaOffsetY + gridMarginTop + gameAreaHeight - 50;
-
+      if (chaosType < 0.35) {
+        // Random jump - teleport ke posisi acak!
         this.scene.tweens.add({
           targets: this.container,
           x: minX + Math.random() * (maxX - minX),
           y: minY + Math.random() * (maxY - minY),
-          duration: 300 + Math.random() * 500,
+          duration: 200 + Math.random() * 300, // Super cepat - 0.2-0.5s!
           ease: 'Quad.easeInOut',
           onComplete: () => moveChaos(),
         });
-      } else if (chaosType < 0.6) {
-        // Small circle
-        const radius = cellSize * (0.2 + Math.random() * 0.4);
+      } else if (chaosType < 0.65) {
+        // Small circle/arc movement
+        const radius = 40 * dpr + Math.random() * 60 * dpr; // 40-100px
         const angle = Math.random() * Math.PI * 2;
 
         this.scene.tweens.add({
           targets: this.container,
-          x: centerX + Math.cos(angle) * radius,
-          y: centerY + Math.sin(angle) * radius,
-          duration: 400 + Math.random() * 400,
+          x: this.container.x + Math.cos(angle) * radius,
+          y: this.container.y + Math.sin(angle) * radius,
+          duration: 200 + Math.random() * 250, // Cepat - 0.2-0.45s
           ease: 'Sine.easeInOut',
           onComplete: () => moveChaos(),
         });
       } else {
-        // Diagonal dash
-        const dashDistance = cellSize * (0.5 + Math.random() * 1.0);
+        // Diagonal dash - gerakan diagonal cepat!
+        const dashDistance = 80 * dpr + Math.random() * 120 * dpr; // 80-200px dash
         const angle = Math.random() * Math.PI * 2;
 
         this.scene.tweens.add({
           targets: this.container,
           x: this.container.x + Math.cos(angle) * dashDistance,
           y: this.container.y + Math.sin(angle) * dashDistance,
-          duration: 350 + Math.random() * 450,
+          duration: 250 + Math.random() * 300, // Cepat - 0.25-0.55s
           ease: 'Quad.easeOut',
           onComplete: () => moveChaos(),
         });
