@@ -76,6 +76,10 @@ export abstract class Target {
     // Extract image data for pixel-perfect collision
     this.extractImageData();
 
+    // Listen to enemy damage events - react when other characters are slashed
+    this.scene.events.on('enemy-damaged', this.onEnemyDamaged.bind(this));
+    this.scene.events.on('enemy-killed', this.onEnemyKilled.bind(this));
+
     // Store final position
     const finalX = config.x;
     const finalY = config.y;
@@ -1061,6 +1065,48 @@ export abstract class Target {
     objects.push(...this.particleEmitters);
 
     return objects;
+  }
+
+  /**
+   * React when another enemy is damaged by player
+   * Change movement pattern to make game more challenging
+   */
+  onEnemyDamaged(damagedTarget: any): void {
+    // Don't react to self
+    if (damagedTarget === this) return;
+
+    // 30% chance to change movement pattern
+    if (Math.random() < 0.3) {
+      console.log(`⚡ Reacting to damage! Changing movement...`);
+      this.changeMovementPattern();
+    }
+  }
+
+  /**
+   * React when another enemy is killed
+   * Higher chance to change movement when teammate dies
+   */
+  onEnemyKilled(killedTarget: any): void {
+    // Don't react to self
+    if (killedTarget === this) return;
+
+    // 60% chance to change movement pattern (fear reaction!)
+    if (Math.random() < 0.6) {
+      console.log(`💀 Teammate killed! Changing movement in fear!`);
+      this.changeMovementPattern();
+    }
+  }
+
+  /**
+   * Change movement pattern randomly
+   * Forces character to pick a new random movement pattern
+   */
+  changeMovementPattern(): void {
+    // Kill existing wandering tweens
+    this.scene.tweens.killTweensOf(this.container);
+
+    // Start new random movement
+    this.startCircularWandering();
   }
 
   destroy(): void {

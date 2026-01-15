@@ -9,7 +9,6 @@ import { AudioManager } from "../managers/AudioManager";
 import { WeaponManager } from "../managers/WeaponManager";
 import {
   ProgressionManager,
-  TEST_CONTINUOUS_CONFIG,
   type CharacterClass,
 } from "../managers/ProgressionManager";
 import { GameConfig } from "../types";
@@ -271,9 +270,12 @@ export class GameScene extends Scene {
 
     // Initialize progression manager
     // CONTINUOUS MODE: Unlimited enemies with increasing difficulty
+    // Generate coin-based progression config (respects player level)
+    const coinBasedConfig = this.getCoinBasedProgressionConfig();
+
     this.progressionManager = new ProgressionManager(
       this,
-      TEST_CONTINUOUS_CONFIG,
+      coinBasedConfig,
       {
         onSpawnEnemy: (characterClass, position) => {
           // DISABLED: Don't change background per character
@@ -537,6 +539,9 @@ export class GameScene extends Scene {
         // Apply damage to target
         target.takeDamage(damage);
 
+        // Dispatch event so other enemies can react (sensor motorik training!)
+        this.events.emit('enemy-damaged', target);
+
         // Check if target is dead
         if (target.isDead()) {
           // Clear slash marks from sparks system
@@ -556,6 +561,9 @@ export class GameScene extends Scene {
             enemyPos.centerY
           );
           this.spawnCoinAnimation(screenEnemyPos.x, screenEnemyPos.y, 10);
+
+          // Notify other enemies that this enemy is about to die
+          this.events.emit('enemy-killed', target);
 
           // Trigger explosion animation and fade out
           const explosionObjects = target.explode(() => {
@@ -1145,6 +1153,9 @@ export class GameScene extends Scene {
 
       // Save progress
       this.saveProgress();
+
+      // Restart progression manager with new difficulty config
+      this.updateProgressionConfig();
     }
   }
 
@@ -1158,6 +1169,124 @@ export class GameScene extends Scene {
       }
     }
     return 1;
+  }
+
+  /**
+   * Update progression config when player levels up
+   * Restarts progression manager with appropriate enemies for new level
+   */
+  updateProgressionConfig(): void {
+    // Stop current progression
+    this.progressionManager?.stop();
+
+    // Generate new config based on updated level
+    const newConfig = this.getCoinBasedProgressionConfig();
+
+    // Restart progression manager with new config
+    this.progressionManager = new ProgressionManager(
+      this,
+      newConfig,
+      {
+        onSpawnEnemy: (characterClass, position) => {
+          this.spawnEnemy(characterClass, position);
+        },
+        gridToGame: (col, row, w, h) => this.gridToGame(col, row, w, h),
+        onDifficultyChange: (tierIndex) => {
+          console.log(`⚠️ DIFFICULTY INCREASED! Tier ${tierIndex + 1}/12`);
+        },
+      },
+      this.gameConfig
+    );
+
+    // Start new progression
+    this.progressionManager.start();
+
+    console.log(`🔄 Progression config updated for Level ${this.playerLevel}`);
+  }
+
+  /**
+   * Generate coin-based progression config (respects player level)
+   * Only spawns enemies that match the player's current level/coins
+   */
+  getCoinBasedProgressionConfig() {
+    const level = this.calculatePlayerLevel();
+
+    // Level 1 (0-9,999 coins): Only OrangeBot
+    if (level === 1) {
+      return {
+        mode: "continuous",
+        continuousConfig: {
+          tiers: [
+            {
+              startTime: 0,
+              enemies: [{ characterClass: OrangeBot, weight: 1 }],
+              maxConcurrent: 2,
+              spawnInterval: 3000,
+            },
+          ],
+        },
+      };
+    }
+
+    // Level 2 (10,000-24,999 coins): OrangeBot + LeafBot
+    if (level === 2) {
+      return {
+        mode: "continuous",
+        continuousConfig: {
+          tiers: [
+            {
+              startTime: 0,
+              enemies: [
+                { characterClass: OrangeBot, weight: 7 },
+                { characterClass: LeafBot, weight: 3 },
+              ],
+              maxConcurrent: 3,
+              spawnInterval: 2500,
+            },
+          ],
+        },
+      };
+    }
+
+    // Level 3 (25,000-49,999 coins): OrangeBot + LeafBot + FlyBot
+    if (level === 3) {
+      return {
+        mode: "continuous",
+        continuousConfig: {
+          tiers: [
+            {
+              startTime: 0,
+              enemies: [
+                { characterClass: OrangeBot, weight: 5 },
+                { characterClass: LeafBot, weight: 3 },
+                { characterClass: FlyBot, weight: 2 },
+              ],
+              maxConcurrent: 4,
+              spawnInterval: 2000,
+            },
+          ],
+        },
+      };
+    }
+
+    // Level 4 (50,000+ coins): Master Level - all enemies with increased difficulty
+    return {
+      mode: "continuous",
+      continuousConfig: {
+        tiers: [
+          {
+            startTime: 0,
+            enemies: [
+              { characterClass: OrangeBot, weight: 3 },
+              { characterClass: LeafBot, weight: 4 },
+              { characterClass: FlyBot, weight: 3 },
+            ],
+            maxConcurrent: 5,
+            spawnInterval: 1800,
+          },
+        ],
+      },
+    };
   }
 
   /**
