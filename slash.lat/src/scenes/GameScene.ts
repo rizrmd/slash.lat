@@ -181,10 +181,17 @@ export class GameScene extends Scene {
     this.uiCamera = this.cameras.add(0, 0, canvasWidth * dpr, canvasHeight * dpr);
     this.uiCamera.setName("uiCamera");
 
-    // CRITICAL FIX: Set camera bounds to match GAME WORLD size
-    // This ensures the camera knows the full extent of the game world
+    // CRITICAL FIX: Set camera viewport to show only GAME AREA (not full canvas)
+    // This matches the working commit 7e02a06
+    this.cameras.main.setViewport(
+      this.gameConfig.gameAreaOffsetX * dpr,  // X position (centered on desktop)
+      0,                                        // Y position (top)
+      this.gameConfig.gameAreaWidth * dpr,      // Width (constrained play area)
+      this.gameConfig.gameAreaHeight * dpr      // Height (full screen minus UI)
+    );
+
+    // Set camera bounds to match GAME WORLD size
     this.cameras.main.setBounds(0, 0, gameWidth, gameHeight);
-    this.cameras.main.setViewport(0, 0, canvasWidth * dpr, canvasHeight * dpr);
     this.cameras.main.setBackgroundColor("#000000");
 
     // DEBUG: Log camera configuration
@@ -710,8 +717,10 @@ export class GameScene extends Scene {
       `  Margins: L=${marginLeft.toFixed(0)} T=${marginTop.toFixed(0)}`,
       `  HP Offset: ${hpBarOffset.toFixed(0)}`,
       ``,
-      `Camera: ${cam.width.toFixed(0)}x${cam.height.toFixed(0)}`,
-      `Zoom: ${cam.zoom.toFixed(3)}`,
+      `Camera Viewport:`,
+      `  X: ${cam.x.toFixed(0)} Y: ${cam.y.toFixed(0)}`,
+      `  W: ${cam.width.toFixed(0)} H: ${cam.height.toFixed(0)}`,
+      `  Zoom: ${cam.zoom.toFixed(3)}`,
       ``,
       `Last Spawn:`,
       `  X: ${spawn ? spawn.x.toFixed(0) : 'N/A'}`,
