@@ -137,8 +137,47 @@ export class GameScene extends Scene {
       }
     });
 
-    // Set background color for game area
-    this.cameras.main.setBackgroundColor("#000000");
+    // Add background image FIRST - position at center of full canvas
+    // Use the actual canvas dimensions (not game world dimensions)
+    const fullCanvasWidth = this.cameras.main.width;
+    const fullCanvasHeight = this.cameras.main.height;
+
+    this.gameBackground = this.add.image(fullCanvasWidth / 2, fullCanvasHeight / 2, "game-bg");
+    this.gameBackground.setOrigin(0.5);
+
+    // FULLSCREEN - cover entire visible canvas area (like CSS background-size: cover)
+    // Scale to cover BOTH dimensions, cropping if necessary
+    const bgWidth = this.gameBackground.width;
+    const bgHeight = this.gameBackground.height;
+    const bgAspectRatio = bgWidth / bgHeight;
+    const screenAspectRatio = fullCanvasWidth / fullCanvasHeight;
+
+    let displayWidth: number;
+    let displayHeight: number;
+
+    if (bgAspectRatio > screenAspectRatio) {
+      // Background wider than screen - fit to HEIGHT (cover mode)
+      displayHeight = fullCanvasHeight;
+      displayWidth = fullCanvasHeight * bgAspectRatio;
+    } else {
+      // Background taller than screen - fit to WIDTH (cover mode)
+      displayWidth = fullCanvasWidth;
+      displayHeight = fullCanvasWidth / bgAspectRatio;
+    }
+
+    this.gameBackground.setDisplaySize(displayWidth, displayHeight);
+    this.gameBackground.setDepth(-10000); // Render behind everything
+    this.gameBackground.setAlpha(0.7);
+
+    console.log(`✓ Fullscreen background: ${displayWidth.toFixed(0)}x${displayHeight.toFixed(0)} (screen: ${fullCanvasWidth.toFixed(0)}x${fullCanvasHeight.toFixed(0)})`);
+
+    this.currentBackgroundKey = "game-bg";
+
+    // IMPORTANT: Make sure background IS ignored by UI camera (only shown in main camera)
+    if (this.gameBackground) {
+      this.uiCamera?.ignore(this.gameBackground);
+      console.log("✓ Background ignored by UI camera");
+    }
 
     // Initialize audio manager sounds
     this.audioManager?.addSound("knife-slash");
