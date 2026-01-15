@@ -185,6 +185,15 @@ export class GameScene extends Scene {
     this.cameras.main.setViewport(0, 0, canvasWidth * dpr, canvasHeight * dpr);
     this.cameras.main.setBackgroundColor("#000000");
 
+    // DEBUG: Log camera configuration
+    console.log('=== CAMERA CONFIG ===');
+    console.log(`Game world: ${gameWidth.toFixed(0)}x${gameHeight.toFixed(0)}`);
+    console.log(`Canvas (physical): ${(canvasWidth * dpr).toFixed(0)}x${(canvasHeight * dpr).toFixed(0)}`);
+    console.log(`Viewport: ${this.cameras.main.width.toFixed(0)}x${this.cameras.main.height.toFixed(0)}`);
+    console.log(`Camera bounds:`, this.cameras.main._bounds);
+    console.log(`Camera zoom: ${this.cameras.main.zoom.toFixed(3)}`);
+    console.log('=====================');
+
     // Main camera ignores UI layer (only shows game objects not in UI layer)
     this.cameras.main.ignore(this.uiLayer);
 
@@ -766,6 +775,26 @@ export class GameScene extends Scene {
    * Called by ProgressionManager
    */
   spawnEnemy(characterClass: CharacterClass, position: { x: number; y: number }): void {
+    // DEBUG: Log spawn position and grid config
+    console.log('=== SPAWN DEBUG ===');
+    console.log(`Spawn position: x=${position.x.toFixed(0)}, y=${position.y.toFixed(0)}`);
+    console.log(`Game config:`);
+    console.log(`  - gameWidth: ${this.gameConfig.gameWidth.toFixed(0)}`);
+    console.log(`  - gameHeight: ${this.gameConfig.gameHeight.toFixed(0)}`);
+    console.log(`  - gridWidth: ${this.gameConfig.gridWidth.toFixed(0)}`);
+    console.log(`  - gridHeight: ${this.gameConfig.gridHeight.toFixed(0)}`);
+    console.log(`  - gridMarginLeft: ${this.gameConfig.gridMarginLeft.toFixed(0)}`);
+    console.log(`  - gridMarginTop: ${this.gameConfig.gridMarginTop.toFixed(0)}`);
+    console.log(`  - safeAreaOffsetX: ${this.gameConfig.safeAreaOffsetX.toFixed(0)}`);
+    console.log(`  - safeAreaOffsetY: ${this.gameConfig.safeAreaOffsetY.toFixed(0)}`);
+    console.log(`  - dpr: ${this.gameConfig.dpr.toFixed(2)}`);
+    console.log(`Camera info:`);
+    console.log(`  - camera width: ${this.cameras.main.width.toFixed(0)}`);
+    console.log(`  - camera height: ${this.cameras.main.height.toFixed(0)}`);
+    console.log(`  - camera zoom: ${this.cameras.main.zoom.toFixed(3)}`);
+    console.log(`  - camera bounds:`, this.cameras.main._bounds);
+    console.log('==================');
+
     // Create target at specified position
     const target = new characterClass({
       scene: this,
