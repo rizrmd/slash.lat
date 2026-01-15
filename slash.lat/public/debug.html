@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Slash.lat Debug</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <style>
+    body { font-family: monospace; padding: 20px; background: #000; color: #0f0; }
+    .error { color: #f00; }
+    .success { color: #0f0; }
+    .warning { color: #ff0; }
+    h2 { margin-top: 30px; }
+  </style>
+</head>
+<body>
+  <h1>🔍 Slash.lat Debug Info</h1>
+
+  <h2>1. Browser Info</h2>
+  <div id="browser-info"></div>
+
+  <h2>2. Screen Info</h2>
+  <div id="screen-info"></div>
+
+  <h2>3. Game Config</h2>
+  <div id="game-config"></div>
+
+  <h2>4. Asset Loading</h2>
+  <div id="asset-loading"></div>
+
+  <script>
+    // Browser Info
+    document.getElementById('browser-info').innerHTML = `
+      <p>User Agent: <span class="success">${navigator.userAgent}</span></p>
+      <p>Platform: <span class="success">${navigator.platform}</span></p>
+      <p>Language: <span class="success">${navigator.language}</span></p>
+    `;
+
+    // Screen Info
+    document.getElementById('screen-info').innerHTML = `
+      <p>Screen: <span class="success">${screen.width}x${screen.height}</span></p>
+      <p>Window: <span class="success">${window.innerWidth}x${window.innerHeight}</span></p>
+      <p>Device Pixel Ratio: <span class="success">${window.devicePixelRatio}</span></p>
+      <p>Orientation: <span class="success">${window.innerWidth < window.innerHeight ? 'Portrait' : 'Landscape'}</span></p>
+    `;
+
+    // Test Assets
+    const assets = [
+      '/image/game-bg.png',
+      '/image/bg-orange.png',
+      '/image/characters/orange-bot.webp',
+      '/assets/index-DiAoaOYO.js'
+    ];
+
+    let assetHtml = '';
+    assets.forEach(asset => {
+      fetch(asset, { method: 'HEAD' })
+        .then(response => {
+          const status = response.ok ? '✅' : '❌';
+          const color = response.ok ? 'success' : 'error';
+          assetHtml += `<p class="${color}">${status} ${asset} (${response.status})</p>`;
+        })
+        .catch(error => {
+          assetHtml += `<p class="error">❌ ${asset} - ${error.message}</p>`;
+        });
+    });
+
+    setTimeout(() => {
+      document.getElementById('asset-loading').innerHTML = assetHtml;
+    }, 2000);
+
+    // Clear Cache Button
+    document.body.innerHTML += `
+      <h2>5. Actions</h2>
+      <button onclick="location.reload(true)" style="padding: 10px 20px; font-size: 16px;">
+        🔄 Hard Refresh (Bypass Cache)
+      </button>
+      <button onclick="clearCache()" style="padding: 10px 20px; font-size: 16px; margin-left: 10px;">
+        🗑️ Clear All Cache
+      </button>
+      <p id="cache-status"></p>
+    `;
+
+    async function clearCache() {
+      if ('caches' in window) {
+        const names = await caches.keys();
+        await Promise.all(names.map(name => caches.delete(name)));
+        document.getElementById('cache-status').innerHTML =
+          '<span class="success">✅ Cache cleared! Reloading...</span>';
+        setTimeout(() => location.reload(true), 1000);
+      } else {
+        document.getElementById('cache-status').innerHTML =
+          '<span class="warning">⚠️ Cache API not supported</span>';
+      }
+    }
+  </script>
+</body>
+</html>
