@@ -14,56 +14,30 @@ export interface SlashMark {
 }
 
 /**
- * Game configuration with multi-aspect ratio support
- * All dimensions are in game coordinate space (not screen pixels)
- * Supports both portrait (mobile 9:16) and landscape (laptop 16:9) orientations
+ * Game configuration (matching commit 7e02a06 that WORKS!)
+ * Simple, straightforward configuration without complex safe area calculations
  */
 export interface GameConfig {
-    // Base resolution (design resolution)
-    // Portrait: 1080x1920 (9:16), Landscape: 1920x1080 (16:9)
-    baseWidth: number;
-    baseHeight: number;
-    baseAspectRatio: number;
-
-    // Orientation detection
-    isPortrait: boolean;
-    isLandscape: boolean;
-
-    // Scaling
+    // Device pixel ratio for high-DPI displays
     dpr: number;
-    scale: number;
-    gameWidth: number;
-    gameHeight: number;
-    canvasWidth: number;
-    canvasHeight: number;
-    windowAspectRatio: number;
 
-    // Safe area (85-90% of screen, critical gameplay elements)
-    // Ensures visibility on all aspect ratios (notch, rounded corners, etc.)
-    safeAreaWidth: number;
-    safeAreaHeight: number;
-    safeAreaOffsetX: number;
-    safeAreaOffsetY: number;
+    // Maximum game width (fixed at 400px for consistent gameplay)
+    maxGameWidth: number;
 
-    // Game play area (safe area minus UI space)
+    // Game world dimensions (logical coordinate space)
+    gameWidth: number; // Always 400px
+    canvasWidth: number; // Screen width (e.g., 1080px)
+    gameHeight: number; // Screen height (e.g., 1920px)
+
+    // Game play area (where characters can spawn)
     gameAreaWidth: number;
-    gameAreaHeight: number;
     gameAreaOffsetX: number;
+    gameAreaHeight: number;
     gameAreaOffsetY: number;
 
-    // Grid system (5x3 for character positioning)
+    // Grid dimensions (5x3 for character positioning)
     gridWidth: number;
     gridHeight: number;
-    gridMarginLeft: number;
-    gridMarginRight: number;
-    gridMarginTop: number;
-    gridMarginBottom: number;
-
-    // Device type
-    isMobile: boolean;
-
-    // Legacy (for backward compatibility)
-    maxGameWidth?: number;
 }
 
 export interface Weapon {

@@ -130,11 +130,9 @@ export class GameScene extends Scene {
   create(): void {
     const {
       canvasWidth,
-      canvasHeight,
-      gameWidth,
       gameHeight,
+      gameWidth,
       dpr,
-      scale,
     } = this.gameConfig;
 
     // Create separate layers for game objects and UI
@@ -181,13 +179,12 @@ export class GameScene extends Scene {
     this.uiCamera = this.cameras.add(0, 0, canvasWidth * dpr, canvasHeight * dpr);
     this.uiCamera.setName("uiCamera");
 
-    // CRITICAL FIX: Set camera viewport to show only GAME AREA (not full canvas)
-    // This matches the working commit 7e02a06
+    // Set main camera viewport to game area (from commit 7e02a06)
     this.cameras.main.setViewport(
-      this.gameConfig.gameAreaOffsetX * dpr,  // X position (centered on desktop)
-      0,                                        // Y position (top)
-      this.gameConfig.gameAreaWidth * dpr,      // Width (constrained play area)
-      this.gameConfig.gameAreaHeight * dpr      // Height (full screen minus UI)
+      this.gameConfig.gameAreaOffsetX * dpr,
+      0,
+      this.gameConfig.gameAreaWidth * dpr,
+      this.gameConfig.gameAreaHeight * dpr
     );
 
     // Set camera bounds to match GAME WORLD size
@@ -697,28 +694,23 @@ export class GameScene extends Scene {
     const c = this.gameConfig;
     const cam = this.cameras.main;
     const spawn = this.lastSpawnPosition;
-    const dpr = c.dpr;
-
-    // Calculate grid margins (matching main.ts)
-    const marginLeft = 30 * dpr;
-    const marginTop = 30 * dpr;
-    const hpBarOffset = 80 * dpr;
-    const gridWidth = c.gameAreaWidth * dpr - marginLeft - marginLeft;
-    const gridHeight = c.gameAreaHeight * dpr - marginTop - (50 * dpr) - hpBarOffset;
 
     const debugInfo = [
       `=== DEBUG INFO ===`,
-      `Canvas: ${c.canvasWidth}x${c.canvasHeight}`,
-      `GameArea: ${c.gameAreaWidth.toFixed(0)}x${c.gameAreaHeight.toFixed(0)}`,
+      `Game Width: ${c.gameWidth}px (LOGICAL)`,
+      `Canvas: ${c.canvasWidth}x${c.gameHeight}`,
       `DPR: ${c.dpr.toFixed(2)}`,
       ``,
-      `Grid (scaled):`,
-      `  W: ${gridWidth.toFixed(0)} H: ${gridHeight.toFixed(0)}`,
-      `  Margins: L=${marginLeft.toFixed(0)} T=${marginTop.toFixed(0)}`,
-      `  HP Offset: ${hpBarOffset.toFixed(0)}`,
+      `Game Area:`,
+      `  W: ${c.gameAreaWidth.toFixed(0)}`,
+      `  H: ${c.gameAreaHeight.toFixed(0)}`,
+      `  OffsetX: ${c.gameAreaOffsetX.toFixed(0)}`,
       ``,
-      `Camera Viewport:`,
-      `  X: ${cam.x.toFixed(0)} Y: ${cam.y.toFixed(0)}`,
+      `Grid (scaled):`,
+      `  W: ${c.gridWidth.toFixed(0)}`,
+      `  H: ${c.gridHeight.toFixed(0)}`,
+      ``,
+      `Camera:`,
       `  W: ${cam.width.toFixed(0)} H: ${cam.height.toFixed(0)}`,
       `  Zoom: ${cam.zoom.toFixed(3)}`,
       ``,
