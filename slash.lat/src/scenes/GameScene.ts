@@ -55,6 +55,8 @@ export class GameScene extends Scene {
   private weaponManager?: WeaponManager;
   private progressionManager?: ProgressionManager;
   private gameBackground?: Phaser.GameObjects.Image;
+  private backgroundContainer?: Phaser.GameObjects.Container; // Container for parallax effect
+  private backgroundParticles?: Phaser.GameObjects.Particles.ParticleEmitter; // Floating particles
   private currentBackgroundKey?: string; // Track current background to prevent unnecessary changes
   private lastActivityTime: number = Date.now(); // Track player activity
   private isPlayerActive: boolean = false; // Is player currently active?
@@ -159,8 +161,12 @@ export class GameScene extends Scene {
     const fullCanvasWidth = this.cameras.main.width;
     const fullCanvasHeight = this.cameras.main.height;
 
+    // Create background container for parallax effects
+    this.backgroundContainer = this.add.container(fullCanvasWidth / 2, fullCanvasHeight / 2);
+    this.backgroundContainer.setDepth(-10000); // Render behind everything
+
     // Use saved background selection
-    this.gameBackground = this.add.image(fullCanvasWidth / 2, fullCanvasHeight / 2, this.selectedBackground);
+    this.gameBackground = this.add.image(0, 0, this.selectedBackground);
     this.gameBackground.setOrigin(0.5);
 
     // FULLSCREEN - cover entire visible canvas area (like CSS background-size: cover)
@@ -184,12 +190,17 @@ export class GameScene extends Scene {
     }
 
     this.gameBackground.setDisplaySize(displayWidth, displayHeight);
-    this.gameBackground.setDepth(-10000); // Render behind everything
     this.gameBackground.setAlpha(0.7);
+
+    // Add background image to container
+    this.backgroundContainer.add(this.gameBackground);
 
     console.log(`✓ Fullscreen background: ${displayWidth.toFixed(0)}x${displayHeight.toFixed(0)} (screen: ${fullCanvasWidth.toFixed(0)}x${fullCanvasHeight.toFixed(0)})`);
 
     this.currentBackgroundKey = "game-bg";
+
+    // Setup animated background effects
+    this.setupAnimatedBackground();
 
     // Create separate UI camera that spans full canvas (for UI elements)
     this.uiCamera = this.cameras.add(0, 0, canvasWidth * dpr, canvasHeight * dpr);
@@ -1060,6 +1071,81 @@ export class GameScene extends Scene {
       this.levelProgressText.setText('MAX LEVEL! 🎉');
       this.levelProgressText.setColor('#00FF00'); // Green color
     }
+  }
+
+  /**
+   * Setup animated background effects
+   * - Breathing effect (subtle zoom in/out)
+   * - Floating particles (stars/dust)
+   * - Parallax effect on pointer move
+   */
+  setupAnimatedBackground(): void {
+    if (!this.backgroundContainer || !this.gameBackground) return;
+
+    const { canvasWidth, canvasHeight, dpr } = this.gameConfig;
+
+    // 1. BREATHING EFFECT - Subtle zoom in/out
+    this.tweens.add({
+      targets: this.backgroundContainer,
+      scale: 1.05, // 5% zoom (very subtle)
+      duration: 8000, // 8 seconds for slow breathing
+      yoyo: true,
+      repeat: -1,
+      ease: "Sine.easeInOut",
+    });
+
+    // 2. FLOATING PARTICLES - Create subtle star/dust particles
+    // Create particle texture programmatically
+    const particleGraphics = this.make.graphics({ x: 0, y: 0, add: false });
+    const particleSize = 4 * dpr;
+    particleGraphics.fillStyle(0xFFFFFF, 0.6); // White with 60% opacity
+    particleGraphics.fillCircle(particleSize, particleSize, particleSize);
+    particleGraphics.generateTexture('star-particle', particleSize * 2, particleSize * 2);
+
+    // Create particle emitter
+    this.backgroundParticles = this.add.particles(0, 0, 'star-particle', {
+      x: { min: 0, max: canvasWidth * dpr },
+      y: { min: -50, max: canvasHeight * dpr * 0.3 }, // Only top 30% of screen
+      lifespan: 8000, // 8 seconds
+      speedY: { min: 20, max: 50 }, // Slow falling
+      speedX: { min: -10, max: 10 }, // Slight horizontal drift
+      scale: { start: 0.5, end: 0 }, // Fade out
+      alpha: { start: 0.4, end: 0 }, // Fade out
+      frequency: 200, // New particle every 200ms
+      quantity: 1,
+      blendMode: 'ADD',
+    });
+
+    // Add particles to background container for proper depth
+    this.backgroundContainer.add(this.backgroundParticles);
+
+    // 3. PARALLAX EFFECT - Move background slightly on pointer move
+    this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
+      if (!this.backgroundContainer) return;
+
+      const { canvasWidth, canvasHeight } = this.gameConfig;
+      const centerX = canvasWidth / 2;
+      const centerY = canvasHeight / 2;
+
+      // Calculate offset from center (normalized -1 to 1)
+      const offsetX = (pointer.x - centerX) / centerX;
+      const offsetY = (pointer.y - centerY) / centerY;
+
+      // Apply parallax (very subtle - max 2% movement)
+      const parallaxX = offsetX * 20 * dpr;
+      const parallaxY = offsetY * 20 * dpr;
+
+      // Smooth transition to new position
+      this.tweens.add({
+        targets: this.backgroundContainer,
+        x: (canvasWidth * dpr) / 2 + parallaxX,
+        y: (canvasHeight * dpr) / 2 + parallaxY,
+        duration: 300,
+        ease: "Quad.easeOut",
+      });
+    });
+
+    console.log("✨ Animated background effects enabled (breathing + particles + parallax)");
   }
 
   updateHPBar(): void {
