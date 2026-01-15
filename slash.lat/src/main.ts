@@ -189,7 +189,10 @@ console.log(`Window: ${windowWidth}x${windowHeight} (ratio: ${windowAspectRatio.
 console.log(`Base: ${BASE_WIDTH}x${BASE_HEIGHT} (ratio: ${BASE_ASPECT_RATIO.toFixed(3)})`);
 console.log(`Game: ${gameWidth.toFixed(0)}x${gameHeight.toFixed(0)} (scale: ${scale.toFixed(2)})`);
 console.log(`Safe Area: ${safeAreaWidth.toFixed(0)}x${safeAreaHeight.toFixed(0)} (offset: ${safeAreaOffsetX.toFixed(0)}, ${safeAreaOffsetY.toFixed(0)})`);
+console.log(`Grid: ${gridWidth.toFixed(0)}x${gridHeight.toFixed(0)} (margins: ${gridMarginLeft}, ${gridMarginTop})`);
+console.log(`Game Area: ${gameAreaWidth.toFixed(0)}x${gameAreaHeight.toFixed(0)} (UI: ${uiHeight})`);
 console.log(`DPR: ${dpr}`);
+console.log('BUILD 2026-01-15 FIX: Grid margins without DPR');
 console.log('==========================');
 
 // Create game instance
