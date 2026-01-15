@@ -47,6 +47,8 @@ export class GameScene extends Scene {
   private lastActivityTime: number = Date.now(); // Track player activity
   private isPlayerActive: boolean = false; // Is player currently active?
   private activityCheckEvent?: Phaser.Time.TimerEvent;
+  private debugText?: Phaser.GameObjects.Text; // On-screen debug info
+  private lastSpawnPosition?: { x: number; y: number }; // Store for debug display
 
   constructor(gameConfig: GameConfig) {
     super({ key: "GameScene" });
@@ -214,6 +216,11 @@ export class GameScene extends Scene {
       console.log("✓ Background ignored by UI camera");
     }
 
+    // Debug text will be created later, ensure it's ignored by UI camera
+    if (this.debugText) {
+      this.uiCamera?.ignore(this.debugText);
+    }
+
     // Initialize audio manager sounds
     this.audioManager?.addSound("knife-slash");
     this.audioManager?.addSound("knife-clank");
@@ -297,6 +304,31 @@ export class GameScene extends Scene {
 
     // Start activity checker - runs every 1 second
     this.startActivityChecker();
+
+    // Create on-screen debug text (top-left corner, easy to screenshot)
+    this.debugText = this.add.text(20 * dpr, 20 * dpr, '', {
+      fontFamily: 'monospace',
+      fontSize: `${14 * dpr}px`,
+      color: '#00ff00',
+      backgroundColor: '#000000',
+      padding: { x: 10 * dpr, y: 10 * dpr },
+      fontStyle: 'bold'
+    });
+    this.debugText.setDepth(100000); // Always on top
+    this.debugText.setScrollFactor(0); // Fixed position (don't move with camera)
+    // Don't add to uiLayer - let it stay in game world so it shows in main camera
+
+    // CRITICAL: Ignore debug text from UI camera (so it shows in main camera only)
+    if (this.uiCamera) {
+      this.uiCamera.ignore(this.debugText);
+    }
+
+    // Update debug text every second
+    this.time.addEvent({
+      delay: 1000,
+      callback: () => this.updateDebugText(),
+      loop: true
+    });
 
     // Set up input handlers
     this.input.on("pointerdown", this.onPointerDown, this);
@@ -651,6 +683,38 @@ export class GameScene extends Scene {
   }
 
   /**
+   * Update on-screen debug text with game info
+   */
+  updateDebugText(): void {
+    if (!this.debugText) return;
+
+    const c = this.gameConfig;
+    const cam = this.cameras.main;
+    const spawn = this.lastSpawnPosition;
+
+    const debugInfo = [
+      `=== DEBUG INFO ===`,
+      `Canvas: ${c.canvasWidth}x${c.canvasHeight}`,
+      `Game: ${c.gameWidth.toFixed(0)}x${c.gameHeight.toFixed(0)}`,
+      `DPR: ${c.dpr.toFixed(2)}`,
+      ``,
+      `Grid: ${c.gridWidth.toFixed(0)}x${c.gridHeight.toFixed(0)}`,
+      `Margins: L=${c.gridMarginLeft}, T=${c.gridMarginTop}`,
+      `SafeArea: ${c.safeAreaWidth.toFixed(0)}x${c.safeAreaHeight.toFixed(0)}`,
+      ``,
+      `Camera: ${cam.width.toFixed(0)}x${cam.height.toFixed(0)}`,
+      `Zoom: ${cam.zoom.toFixed(3)}`,
+      ``,
+      `Last Spawn:`,
+      `X: ${spawn ? spawn.x.toFixed(0) : 'N/A'}`,
+      `Y: ${spawn ? spawn.y.toFixed(0) : 'N/A'}`,
+      `Active: ${this.targets.length} enemies`
+    ].join('\n');
+
+    this.debugText.setText(debugInfo);
+  }
+
+  /**
    * Update activity status and adjust spawn rate
    */
   updateActivityStatus(isActive: boolean): void {
@@ -775,25 +839,8 @@ export class GameScene extends Scene {
    * Called by ProgressionManager
    */
   spawnEnemy(characterClass: CharacterClass, position: { x: number; y: number }): void {
-    // DEBUG: Log spawn position and grid config
-    console.log('=== SPAWN DEBUG ===');
-    console.log(`Spawn position: x=${position.x.toFixed(0)}, y=${position.y.toFixed(0)}`);
-    console.log(`Game config:`);
-    console.log(`  - gameWidth: ${this.gameConfig.gameWidth.toFixed(0)}`);
-    console.log(`  - gameHeight: ${this.gameConfig.gameHeight.toFixed(0)}`);
-    console.log(`  - gridWidth: ${this.gameConfig.gridWidth.toFixed(0)}`);
-    console.log(`  - gridHeight: ${this.gameConfig.gridHeight.toFixed(0)}`);
-    console.log(`  - gridMarginLeft: ${this.gameConfig.gridMarginLeft.toFixed(0)}`);
-    console.log(`  - gridMarginTop: ${this.gameConfig.gridMarginTop.toFixed(0)}`);
-    console.log(`  - safeAreaOffsetX: ${this.gameConfig.safeAreaOffsetX.toFixed(0)}`);
-    console.log(`  - safeAreaOffsetY: ${this.gameConfig.safeAreaOffsetY.toFixed(0)}`);
-    console.log(`  - dpr: ${this.gameConfig.dpr.toFixed(2)}`);
-    console.log(`Camera info:`);
-    console.log(`  - camera width: ${this.cameras.main.width.toFixed(0)}`);
-    console.log(`  - camera height: ${this.cameras.main.height.toFixed(0)}`);
-    console.log(`  - camera zoom: ${this.cameras.main.zoom.toFixed(3)}`);
-    console.log(`  - camera bounds:`, this.cameras.main._bounds);
-    console.log('==================');
+    // Store last spawn position for debug display
+    this.lastSpawnPosition = position;
 
     // Create target at specified position
     const target = new characterClass({
@@ -808,7 +855,6 @@ export class GameScene extends Scene {
     // This is necessary because main camera ignores uiLayer but shows game objects
     if (this.gameLayer) {
       this.gameLayer.add(target.getContainer());
-      console.log(`✓ Target added to gameLayer at (${position.x.toFixed(0)}, ${position.y.toFixed(0)})`);
     }
 
     // Make UI camera ignore all target's game objects
