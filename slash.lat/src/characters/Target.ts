@@ -342,15 +342,14 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 1: Random waypoints - FULL SCREEN FREEDOM!
-   * Karakter bisa bergerak ke mana saja dalam layar
+   * Pattern 1: Random waypoints - SAFE BOUNDARIES!
+   * Karakter bergerak random tapi TIDAK akan keluar layar
    */
   private startRandomWaypoints(): void {
     const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
 
-    // SAFE AREA untuk movement - gunakan game area, bukan full screen!
-    // Ini memastikan karakter tetap terlihat di smartphone
-    const padding = 60 * dpr;
+    // EXTRA SAFE padding - karakter tidak boleh deket tepi sama sekali!
+    const padding = 100 * dpr; // Lebih besar padding (100px)
     const minX = gameAreaOffsetX + gridMarginLeft + padding;
     const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
     const minY = gameAreaOffsetY + gridMarginTop + padding;
@@ -381,20 +380,30 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 2: Circular motion - DYNAMIC CIRCLES!
-   * Circle dengan radius yang aman untuk smartphone
+   * Pattern 2: Circular motion - SAFE CIRCLES!
+   * Circle dengan radius yang kecil dan aman - tidak akan keluar layar
    */
   private startCircularMotion(): void {
-    const { gridWidth, gridHeight, dpr } = this.gameConfig;
+    const { gridWidth, gridHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, dpr } = this.gameConfig;
     const centerX = this.container.x;
     const centerY = this.container.y;
     const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
 
-    // Radius yang aman untuk smartphone - berdasarkan grid cell size
-    // 60%-150% dari cell size (tidak terlalu besar!)
-    const minRadius = cellSize * 0.6;
-    const maxRadius = cellSize * 1.5;
+    // Radius KECIL dan aman - 40%-80% dari cell size (tidak terlalu besar!)
+    const minRadius = cellSize * 0.4;
+    const maxRadius = cellSize * 0.8;
     const radius = minRadius + Math.random() * (maxRadius - minRadius);
+
+    // CLAMP circle position dalam safe boundaries!
+    const safePadding = 120 * dpr;
+    const minSafeX = gameAreaOffsetX + gridMarginLeft + safePadding;
+    const maxSafeX = gameAreaOffsetX + gridMarginLeft + gridWidth - safePadding;
+    const minSafeY = gameAreaOffsetY + gridMarginTop + safePadding;
+    const maxSafeY = gameAreaOffsetY + gridMarginTop + gameHeight - safePadding;
+
+    // Pastikan circle tidak akan keluar dari safe area
+    const clampedCenterX = Math.max(minSafeX + radius, Math.min(maxSafeX - radius, centerX));
+    const clampedCenterY = Math.max(minSafeY + radius, Math.min(maxSafeY - radius, centerY));
 
     const clockwise = Math.random() > 0.5;
     const arcPoints = 12 + Math.floor(Math.random() * 12); // 12-23 points (more = smoother!)
@@ -403,8 +412,8 @@ export abstract class Target {
     for (let i = 0; i < arcPoints; i++) {
       const angle = (Math.PI * 2 * i) / arcPoints;
       waypoints.push({
-        x: centerX + Math.cos(angle) * radius,
-        y: centerY + Math.sin(angle) * radius,
+        x: clampedCenterX + Math.cos(angle) * radius,
+        y: clampedCenterY + Math.sin(angle) * radius,
       });
     }
 
@@ -434,20 +443,31 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 3: Figure-8 (infinity symbol) - SMOOTH CURVES!
-   * Gerakan fig-8 dengan radius yang aman untuk smartphone
+   * Pattern 3: Figure-8 (infinity symbol) - SAFE FIGURE-8!
+   * Gerakan fig-8 dengan radius KECIL dan aman
    */
   private startFigure8Motion(): void {
-    const { gridWidth, gridHeight, dpr } = this.gameConfig;
+    const { gridWidth, gridHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, dpr } = this.gameConfig;
     const centerX = this.container.x;
     const centerY = this.container.y;
     const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
 
-    // Radius yang aman untuk smartphone - berdasarkan grid cell size
-    const minRadius = cellSize * 0.5;
-    const maxRadius = cellSize * 1.2;
+    // Radius KECIL dan aman - 35%-70% dari cell size
+    const minRadius = cellSize * 0.35;
+    const maxRadius = cellSize * 0.7;
     const radiusX = minRadius + Math.random() * (maxRadius - minRadius); // Horizontal
     const radiusY = (minRadius * 0.5) + Math.random() * ((maxRadius * 0.5) - (minRadius * 0.5)); // Vertical (50% of horizontal)
+
+    // CLAMP figure-8 position dalam safe boundaries!
+    const safePadding = 120 * dpr;
+    const minSafeX = gameAreaOffsetX + gridMarginLeft + safePadding;
+    const maxSafeX = gameAreaOffsetX + gridMarginLeft + gridWidth - safePadding;
+    const minSafeY = gameAreaOffsetY + gridMarginTop + safePadding;
+    const maxSafeY = gameAreaOffsetY + gridMarginTop + gameHeight - safePadding;
+
+    // Pastikan figure-8 tidak akan keluar dari safe area
+    const clampedCenterX = Math.max(minSafeX + radiusX, Math.min(maxSafeX - radiusX, centerX));
+    const clampedCenterY = Math.max(minSafeY + radiusY, Math.min(maxSafeY - radiusY, centerY));
 
     const waypoints: Array<{ x: number; y: number }> = [];
     const points = 20; // More points for smoother figure-8
@@ -456,8 +476,8 @@ export abstract class Target {
       const t = (Math.PI * 2 * i) / points;
       // Lissajous curve untuk figure-8
       waypoints.push({
-        x: centerX + Math.sin(t) * radiusX,
-        y: centerY + Math.sin(t * 2) * radiusY,
+        x: clampedCenterX + Math.sin(t) * radiusX,
+        y: clampedCenterY + Math.sin(t * 2) * radiusY,
       });
     }
 
@@ -487,14 +507,14 @@ export abstract class Target {
   }
 
   /**
-   * Pattern 4: CHAOS - TOTAL RANDOMNESS!
-   * Campuran semua pola secara acak dengan SAFE area untuk smartphone
+   * Pattern 4: CHAOS - SAFE CHAOS!
+   * Campuran semua pola secara acak dengan BOUNDARIES yang sangat aman
    */
   private startChaosMotion(): void {
     const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
 
-    // Safe area boundaries
-    const padding = 60 * dpr;
+    // EXTRA SAFE area boundaries - padding lebih besar!
+    const padding = 100 * dpr;
     const minX = gameAreaOffsetX + gridMarginLeft + padding;
     const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
     const minY = gameAreaOffsetY + gridMarginTop + padding;
@@ -505,7 +525,7 @@ export abstract class Target {
       const chaosType = Math.random();
 
       if (chaosType < 0.35) {
-        // Random jump - teleport ke posisi acak dalam safe area!
+        // Random jump - teleport ke posisi acak dalam EXTRA SAFE area!
         this.scene.tweens.add({
           targets: this.container,
           x: minX + Math.random() * (maxX - minX),
@@ -515,33 +535,45 @@ export abstract class Target {
           onComplete: () => moveChaos(),
         });
       } else if (chaosType < 0.65) {
-        // Small circle/arc movement
+        // Small circle/arc movement dengan radius KECIL
         const gridWidth = gameWidth;
         const gridHeight = gameHeight;
         const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
-        const radius = cellSize * (0.3 + Math.random() * 0.4); // 30-70% dari cell size
+        const radius = cellSize * (0.25 + Math.random() * 0.3); // 25-55% dari cell size (KECIL!)
         const angle = Math.random() * Math.PI * 2;
+
+        // Clamp hasil movement dalam safe area!
+        const newX = this.container.x + Math.cos(angle) * radius;
+        const newY = this.container.y + Math.sin(angle) * radius;
+        const clampedX = Math.max(minX, Math.min(maxX, newX));
+        const clampedY = Math.max(minY, Math.min(maxY, newY));
 
         this.scene.tweens.add({
           targets: this.container,
-          x: this.container.x + Math.cos(angle) * radius,
-          y: this.container.y + Math.sin(angle) * radius,
+          x: clampedX,
+          y: clampedY,
           duration: 200 + Math.random() * 250, // Cepat - 0.2-0.45s
           ease: 'Sine.easeInOut',
           onComplete: () => moveChaos(),
         });
       } else {
-        // Diagonal dash - gerakan diagonal cepat dalam batas yang aman!
+        // Diagonal dash dengan jarak KECIL!
         const gridWidth = gameWidth;
         const gridHeight = gameHeight;
         const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
-        const dashDistance = cellSize * (0.5 + Math.random() * 1.0); // 50-150% dari cell size
+        const dashDistance = cellSize * (0.3 + Math.random() * 0.6); // 30-90% dari cell size (KECIL!)
         const angle = Math.random() * Math.PI * 2;
+
+        // Clamp hasil dash dalam safe area!
+        const newX = this.container.x + Math.cos(angle) * dashDistance;
+        const newY = this.container.y + Math.sin(angle) * dashDistance;
+        const clampedX = Math.max(minX, Math.min(maxX, newX));
+        const clampedY = Math.max(minY, Math.min(maxY, newY));
 
         this.scene.tweens.add({
           targets: this.container,
-          x: this.container.x + Math.cos(angle) * dashDistance,
-          y: this.container.y + Math.sin(angle) * dashDistance,
+          x: clampedX,
+          y: clampedY,
           duration: 250 + Math.random() * 300, // Cepat - 0.25-0.55s
           ease: 'Quad.easeOut',
           onComplete: () => moveChaos(),
