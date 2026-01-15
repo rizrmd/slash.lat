@@ -170,9 +170,9 @@ export abstract class Target {
       },
       onComplete: () => {
         console.log(`✅ Entrance complete for character at ${this.container.x.toFixed(0)}, ${this.container.y.toFixed(0)}`);
-        // Start BOTH breathing effect (zoom) AND wandering movement
+        // Start breathing effect AND circular wandering movement
         this.startBreathingEffect();
-        this.startFastWandering();
+        this.startCircularWandering();
 
         // Notify subclasses when fully visible
         this.onFullyVisible();
@@ -303,48 +303,48 @@ export abstract class Target {
   }
 
   /**
-   * Start ORGANIC wandering - random waypoints, unpredictable movement
-   * Characters move freely in all directions like original 50-waypoint system
+   * Start CIRCULAR/ARC wandering - melengkung/setengah melingkar
+   * Characters move in beautiful curved patterns
    */
-  private startFastWandering(): void {
+  private startCircularWandering(): void {
     const { gridWidth, gridHeight, gameAreaWidth, gameAreaHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
 
-    // Generate 30 RANDOM waypoints for organic, unpredictable movement
+    const centerX = this.container.x;
+    const centerY = this.container.y;
+
+    // Random radius for circular movement
+    const radius = (Math.min(gridWidth / 5, gridHeight / 3)) * (0.5 + Math.random() * 0.8);
+
+    // Random direction (clockwise or counter-clockwise)
+    const clockwise = Math.random() > 0.5;
+
+    // Generate arc waypoints (setengah lingkaran/penuh)
     const waypoints: Array<{ x: number; y: number }> = [];
-    const currentX = this.container.x;
-    const currentY = this.container.y;
+    const arcPoints = 12; // 12 points for smooth arc
 
-    // Calculate boundaries based on game area
-    const minX = gameAreaOffsetX + gridMarginLeft + 50;
-    const maxX = gameAreaOffsetX + gridMarginLeft + gameAreaWidth - 50;
-    const minY = gameAreaOffsetY + gridMarginTop + 50;
-    const maxY = gameAreaOffsetY + gridMarginTop + gameAreaHeight - 50;
-
-    for (let i = 0; i < 30; i++) {
-      // Random position within game area (not just circle around current pos)
-      const x = minX + Math.random() * (maxX - minX);
-      const y = minY + Math.random() * (maxY - minY);
-
+    for (let i = 0; i < arcPoints; i++) {
+      const angle = (Math.PI * 2 * i) / arcPoints; // Full circle divided into 12 points
+      const x = centerX + Math.cos(angle) * radius;
+      const y = centerY + Math.sin(angle) * radius;
       waypoints.push({ x, y });
     }
 
-    console.log(`🎲 Starting ORGANIC wandering: ${waypoints.length} random waypoints, FULL SPEED!`);
+    console.log(`🌀 CIRCULAR wandering: ${waypoints.length} arc points, radius=${radius.toFixed(0)}, clockwise=${clockwise}`);
 
-    // Move through waypoints with VARYING speeds for organic feel
     let currentWaypoint = 0;
 
     const moveToNext = () => {
-      const target = waypoints[currentWaypoint];
+      const target = waypoints[clockwise ? currentWaypoint : (waypoints.length - 1 - currentWaypoint)];
 
-      // FAST random duration - very responsive!
-      const duration = 400 + Math.random() * 600; // 0.4-1.0 seconds (SUPER FAST!)
+      // SLOWER speed - lebih smooth dan visible
+      const duration = 1200 + Math.random() * 800; // 1.2-2.0 seconds (lebih lambat)
 
       this.scene.tweens.add({
         targets: this.container,
         x: target.x,
         y: target.y,
         duration: duration,
-        ease: Math.random() > 0.5 ? "Sine.easeInOut" : "Quad.easeInOut", // Random easing for variety
+        ease: "Sine.easeInOut", // Smooth easing for circular motion
         onComplete: () => {
           currentWaypoint = (currentWaypoint + 1) % waypoints.length;
           moveToNext();
@@ -352,7 +352,7 @@ export abstract class Target {
       });
     };
 
-    // Start wandering
+    // Start circular movement
     moveToNext();
   }
 
@@ -367,14 +367,14 @@ export abstract class Target {
 
     // Get CURRENT scale from container
     const currentScale = this.container.scale;
-    const targetScale = currentScale * 1.80; // 80% increase from CURRENT scale (VERY VISIBLE!)
+    const targetScale = currentScale * 2.00; // 100% increase (DOUBLE SIZE!) - SANGAT VISIBLE!
 
-    console.log(`💓 Breathing START: current scale=${currentScale.toFixed(2)}, target=${targetScale.toFixed(2)} (80% increase)`);
+    console.log(`💓 Breathing START: current scale=${currentScale.toFixed(2)}, target=${targetScale.toFixed(2)} (100% increase - DOUBLE!)`);
 
     this.breathingTween = this.scene.tweens.add({
       targets: this.container,
       scale: targetScale, // Animate TO this scale
-      duration: 1000 + Math.random() * 400, // 1.0-1.4 seconds (slower, more visible)
+      duration: 1200 + Math.random() * 600, // 1.2-1.8 seconds (lebih lambat, lebih visible)
       yoyo: true, // Go back to original scale
       repeat: -1, // Infinite
       ease: "Sine.easeInOut",
