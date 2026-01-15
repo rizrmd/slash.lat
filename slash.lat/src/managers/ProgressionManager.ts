@@ -368,8 +368,10 @@ export class ProgressionManager {
   }
 
   private getRandomGridPosition(): { x: number; y: number } {
-    const column = Math.floor(Math.random() * 5) + 1; // 1-5
-    const row = Math.floor(Math.random() * 3) + 1; // 1-3
+    // Spawn in safe area - use column 2-4 and row 2 (avoid edges!)
+    // This ensures characters don't spawn too close to screen edges
+    const column = Math.floor(Math.random() * 3) + 2; // 2-4 (middle columns)
+    const row = Math.floor(Math.random() * 2) + 2; // 2-3 (avoid top row)
 
     // Use the same grid conversion logic as GameScene.gridToGame
     const {
@@ -382,12 +384,11 @@ export class ProgressionManager {
     } = this.gameConfig;
 
     // Calculate x position (center of the character's grid cells)
-    // For single cell characters (width=1, height=1), center is at (column - 0.5) / 5 * gridWidth
-    const centerColumn = column; // Single cell character
+    const centerColumn = column;
     const x = safeAreaOffsetX + gridMarginLeft + ((centerColumn - 0.5) / 5) * gridWidth;
 
     // Calculate y position (center of the character's grid cells)
-    const centerRow = row; // Single cell character
+    const centerRow = row;
     const y = safeAreaOffsetY + gridMarginTop + ((centerRow - 0.5) / 3) * gridHeight;
 
     return { x, y };
