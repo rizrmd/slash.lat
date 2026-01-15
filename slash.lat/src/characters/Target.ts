@@ -340,14 +340,15 @@ export abstract class Target {
    * Karakter bisa bergerak ke mana saja dalam layar
    */
   private startRandomWaypoints(): void {
-    const { gameWidth, gameHeight, dpr } = this.gameConfig;
+    const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
 
-    // Gunakan FULL screen untuk movement - bukan hanya game area!
-    const padding = 80 * dpr;
-    const minX = padding;
-    const maxX = (gameWidth * dpr) - padding;
-    const minY = padding;
-    const maxY = (gameHeight * dpr) - padding;
+    // SAFE AREA untuk movement - gunakan game area, bukan full screen!
+    // Ini memastikan karakter tetap terlihat di smartphone
+    const padding = 60 * dpr;
+    const minX = gameAreaOffsetX + gridMarginLeft + padding;
+    const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
+    const minY = gameAreaOffsetY + gridMarginTop + padding;
+    const maxY = gameAreaOffsetY + gridMarginTop + gameHeight - padding;
 
     const moveToRandom = () => {
       const targetX = minX + Math.random() * (maxX - minX);
@@ -375,16 +376,18 @@ export abstract class Target {
 
   /**
    * Pattern 2: Circular motion - DYNAMIC CIRCLES!
-   * Circle dengan radius besar dan gerak cepat
+   * Circle dengan radius yang aman untuk smartphone
    */
   private startCircularMotion(): void {
-    const { gameWidth, gameHeight, dpr } = this.gameConfig;
+    const { gridWidth, gridHeight, dpr } = this.gameConfig;
     const centerX = this.container.x;
     const centerY = this.container.y;
+    const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
 
-    // Radius lebih besar untuk lebih dinamis - 100-250px
-    const minRadius = 100 * dpr;
-    const maxRadius = 250 * dpr;
+    // Radius yang aman untuk smartphone - berdasarkan grid cell size
+    // 60%-150% dari cell size (tidak terlalu besar!)
+    const minRadius = cellSize * 0.6;
+    const maxRadius = cellSize * 1.5;
     const radius = minRadius + Math.random() * (maxRadius - minRadius);
 
     const clockwise = Math.random() > 0.5;
@@ -426,18 +429,19 @@ export abstract class Target {
 
   /**
    * Pattern 3: Figure-8 (infinity symbol) - SMOOTH CURVES!
-   * Gerakan fig-8 dengan radius besar dan smooth
+   * Gerakan fig-8 dengan radius yang aman untuk smartphone
    */
   private startFigure8Motion(): void {
-    const { gameWidth, gameHeight, dpr } = this.gameConfig;
+    const { gridWidth, gridHeight, dpr } = this.gameConfig;
     const centerX = this.container.x;
     const centerY = this.container.y;
+    const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
 
-    // Radius besar untuk fig-8 yang dinamis - 80-180px
-    const minRadius = 80 * dpr;
-    const maxRadius = 180 * dpr;
+    // Radius yang aman untuk smartphone - berdasarkan grid cell size
+    const minRadius = cellSize * 0.5;
+    const maxRadius = cellSize * 1.2;
     const radiusX = minRadius + Math.random() * (maxRadius - minRadius); // Horizontal
-    const radiusY = (minRadius * 0.6) + Math.random() * ((maxRadius * 0.6) - (minRadius * 0.6)); // Vertical (60% of horizontal)
+    const radiusY = (minRadius * 0.5) + Math.random() * ((maxRadius * 0.5) - (minRadius * 0.5)); // Vertical (50% of horizontal)
 
     const waypoints: Array<{ x: number; y: number }> = [];
     const points = 20; // More points for smoother figure-8
@@ -478,23 +482,24 @@ export abstract class Target {
 
   /**
    * Pattern 4: CHAOS - TOTAL RANDOMNESS!
-   * Campuran semua pola secara acak dengan FULL SCREEN access
+   * Campuran semua pola secara acak dengan SAFE area untuk smartphone
    */
   private startChaosMotion(): void {
-    const { gameWidth, gameHeight, dpr } = this.gameConfig;
+    const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
 
-    const padding = 80 * dpr;
-    const minX = padding;
-    const maxX = (gameWidth * dpr) - padding;
-    const minY = padding;
-    const maxY = (gameHeight * dpr) - padding;
+    // Safe area boundaries
+    const padding = 60 * dpr;
+    const minX = gameAreaOffsetX + gridMarginLeft + padding;
+    const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
+    const minY = gameAreaOffsetY + gridMarginTop + padding;
+    const maxY = gameAreaOffsetY + gridMarginTop + gameHeight - padding;
 
     const moveChaos = () => {
       // Random setiap kali: pilih pola berbeda!
       const chaosType = Math.random();
 
       if (chaosType < 0.35) {
-        // Random jump - teleport ke posisi acak!
+        // Random jump - teleport ke posisi acak dalam safe area!
         this.scene.tweens.add({
           targets: this.container,
           x: minX + Math.random() * (maxX - minX),
@@ -505,7 +510,10 @@ export abstract class Target {
         });
       } else if (chaosType < 0.65) {
         // Small circle/arc movement
-        const radius = 40 * dpr + Math.random() * 60 * dpr; // 40-100px
+        const gridWidth = gameWidth;
+        const gridHeight = gameHeight;
+        const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
+        const radius = cellSize * (0.3 + Math.random() * 0.4); // 30-70% dari cell size
         const angle = Math.random() * Math.PI * 2;
 
         this.scene.tweens.add({
@@ -517,8 +525,11 @@ export abstract class Target {
           onComplete: () => moveChaos(),
         });
       } else {
-        // Diagonal dash - gerakan diagonal cepat!
-        const dashDistance = 80 * dpr + Math.random() * 120 * dpr; // 80-200px dash
+        // Diagonal dash - gerakan diagonal cepat dalam batas yang aman!
+        const gridWidth = gameWidth;
+        const gridHeight = gameHeight;
+        const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
+        const dashDistance = cellSize * (0.5 + Math.random() * 1.0); // 50-150% dari cell size
         const angle = Math.random() * Math.PI * 2;
 
         this.scene.tweens.add({

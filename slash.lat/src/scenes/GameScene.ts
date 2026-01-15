@@ -1084,11 +1084,11 @@ export class GameScene extends Scene {
 
     const { canvasWidth, canvasHeight, dpr } = this.gameConfig;
 
-    // 1. BREATHING EFFECT - Subtle zoom in/out
+    // 1. BREATHING EFFECT - Subtle zoom in/out (lebih slow untuk performa)
     this.tweens.add({
       targets: this.backgroundContainer,
-      scale: 1.05, // 5% zoom (very subtle)
-      duration: 8000, // 8 seconds for slow breathing
+      scale: 1.03, // 3% zoom (lebih subtle untuk hemat battery)
+      duration: 10000, // 10 seconds (lebih slow = lebih hemat)
       yoyo: true,
       repeat: -1,
       ease: "Sine.easeInOut",
@@ -1097,21 +1097,21 @@ export class GameScene extends Scene {
     // 2. FLOATING PARTICLES - Create subtle star/dust particles
     // Create particle texture programmatically
     const particleGraphics = this.make.graphics({ x: 0, y: 0, add: false });
-    const particleSize = 4 * dpr;
-    particleGraphics.fillStyle(0xFFFFFF, 0.6); // White with 60% opacity
+    const particleSize = 3 * dpr; // Sedikit lebih kecil
+    particleGraphics.fillStyle(0xFFFFFF, 0.5); // White dengan 50% opacity (lebih hemat)
     particleGraphics.fillCircle(particleSize, particleSize, particleSize);
     particleGraphics.generateTexture('star-particle', particleSize * 2, particleSize * 2);
 
-    // Create particle emitter
+    // Create particle emitter dengan frekuensi lebih rendah untuk smartphone
     this.backgroundParticles = this.add.particles(0, 0, 'star-particle', {
       x: { min: 0, max: canvasWidth * dpr },
-      y: { min: -50, max: canvasHeight * dpr * 0.3 }, // Only top 30% of screen
-      lifespan: 8000, // 8 seconds
-      speedY: { min: 20, max: 50 }, // Slow falling
-      speedX: { min: -10, max: 10 }, // Slight horizontal drift
-      scale: { start: 0.5, end: 0 }, // Fade out
-      alpha: { start: 0.4, end: 0 }, // Fade out
-      frequency: 200, // New particle every 200ms
+      y: { min: -50, max: canvasHeight * dpr * 0.25 }, // Only top 25% (lebih sedikit)
+      lifespan: 10000, // 10 seconds (lebih lama = lebih hemat)
+      speedY: { min: 15, max: 35 }, // Lebih slow
+      speedX: { min: -8, max: 8 }, // Less horizontal drift
+      scale: { start: 0.4, end: 0 },
+      alpha: { start: 0.3, end: 0 }, // Lebih transparent
+      frequency: 400, // Lebih jarang - setiap 400ms (hemat performa!)
       quantity: 1,
       blendMode: 'ADD',
     });
@@ -1119,7 +1119,7 @@ export class GameScene extends Scene {
     // Add particles to background container for proper depth
     this.backgroundContainer.add(this.backgroundParticles);
 
-    // 3. PARALLAX EFFECT - Move background slightly on pointer move
+    // 3. PARALLAX EFFECT - Move background slightly on pointer move (lebih subtle)
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {
       if (!this.backgroundContainer) return;
 
@@ -1131,21 +1131,21 @@ export class GameScene extends Scene {
       const offsetX = (pointer.x - centerX) / centerX;
       const offsetY = (pointer.y - centerY) / centerY;
 
-      // Apply parallax (very subtle - max 2% movement)
-      const parallaxX = offsetX * 20 * dpr;
-      const parallaxY = offsetY * 20 * dpr;
+      // Apply parallax (lebih subtle - max 1.5% movement untuk hemat performa)
+      const parallaxX = offsetX * 15 * dpr;
+      const parallaxY = offsetY * 15 * dpr;
 
-      // Smooth transition to new position
+      // Smooth transition ke new position (lebih slow)
       this.tweens.add({
         targets: this.backgroundContainer,
         x: (canvasWidth * dpr) / 2 + parallaxX,
         y: (canvasHeight * dpr) / 2 + parallaxY,
-        duration: 300,
+        duration: 400, // Lebih slow untuk smoother
         ease: "Quad.easeOut",
       });
     });
 
-    console.log("✨ Animated background effects enabled (breathing + particles + parallax)");
+    console.log("✨ Animated background effects enabled (optimized for mobile)");
   }
 
   updateHPBar(): void {
