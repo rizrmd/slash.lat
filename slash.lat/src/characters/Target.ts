@@ -303,45 +303,48 @@ export abstract class Target {
   }
 
   /**
-   * Start FAST wandering - 20 waypoints with fast movement
-   * Characters move quickly around their spawn area
+   * Start ORGANIC wandering - random waypoints, unpredictable movement
+   * Characters move freely in all directions like original 50-waypoint system
    */
   private startFastWandering(): void {
-    const { gridWidth, gridHeight } = this.gameConfig;
+    const { gridWidth, gridHeight, gameAreaWidth, gameAreaHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
 
-    // Get current position as base
-    const baseX = this.container.x;
-    const baseY = this.container.y;
-
-    // Generate 20 waypoints for more dynamic movement
+    // Generate 30 RANDOM waypoints for organic, unpredictable movement
     const waypoints: Array<{ x: number; y: number }> = [];
-    for (let i = 0; i < 20; i++) {
-      // Movement radius: 80% of grid cell size - LARGE visible movement
-      const moveRadius = Math.min(gridWidth / 5, gridHeight / 3) * 0.8;
-      const angle = (Math.PI * 2 * i) / 20; // Spread in full circle
-      const distance = moveRadius * (0.5 + Math.random() * 0.8);
+    const currentX = this.container.x;
+    const currentY = this.container.y;
 
-      waypoints.push({
-        x: baseX + Math.cos(angle) * distance,
-        y: baseY + Math.sin(angle) * distance,
-      });
+    // Calculate boundaries based on game area
+    const minX = gameAreaOffsetX + gridMarginLeft + 50;
+    const maxX = gameAreaOffsetX + gridMarginLeft + gameAreaWidth - 50;
+    const minY = gameAreaOffsetY + gridMarginTop + 50;
+    const maxY = gameAreaOffsetY + gridMarginTop + gameAreaHeight - 50;
+
+    for (let i = 0; i < 30; i++) {
+      // Random position within game area (not just circle around current pos)
+      const x = minX + Math.random() * (maxX - minX);
+      const y = minY + Math.random() * (maxY - minY);
+
+      waypoints.push({ x, y });
     }
 
-    console.log(`🚶 Starting FAST wandering: base=${baseX.toFixed(0)},${baseY.toFixed(0)}, ${waypoints.length} waypoints`);
+    console.log(`🎲 Starting ORGANIC wandering: ${waypoints.length} random waypoints, FULL SPEED!`);
 
-    // Move through waypoints quickly
+    // Move through waypoints with VARYING speeds for organic feel
     let currentWaypoint = 0;
-    const moveDuration = 600 + Math.random() * 400; // 0.6-1.0 seconds per waypoint (FAST!)
 
     const moveToNext = () => {
       const target = waypoints[currentWaypoint];
+
+      // FAST random duration - very responsive!
+      const duration = 400 + Math.random() * 600; // 0.4-1.0 seconds (SUPER FAST!)
 
       this.scene.tweens.add({
         targets: this.container,
         x: target.x,
         y: target.y,
-        duration: moveDuration,
-        ease: "Quad.easeInOut",
+        duration: duration,
+        ease: Math.random() > 0.5 ? "Sine.easeInOut" : "Quad.easeInOut", // Random easing for variety
         onComplete: () => {
           currentWaypoint = (currentWaypoint + 1) % waypoints.length;
           moveToNext();
@@ -364,14 +367,14 @@ export abstract class Target {
 
     this.breathingTween = this.scene.tweens.add({
       targets: this.container,
-      scale: baseScale * 1.15, // Increase by 15%
-      duration: 800 + Math.random() * 400, // 0.8-1.2 seconds (FAST!)
+      scale: baseScale * 1.20, // Increase by 20% (MORE visible!)
+      duration: 500 + Math.random() * 300, // 0.5-0.8 seconds (SUPER FAST!)
       yoyo: true,
       repeat: -1,
       ease: "Sine.easeInOut"
     });
 
-    console.log(`💓 Breathing effect started: scale ${baseScale.toFixed(2)} → ${(baseScale * 1.15).toFixed(2)}`);
+    console.log(`💓 FAST Breathing: scale ${baseScale.toFixed(2)} → ${(baseScale * 1.20).toFixed(2)}`);
   }
 
   protected onFullyVisible(): void {
