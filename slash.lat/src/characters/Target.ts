@@ -200,9 +200,6 @@ export abstract class Target {
    * Start UNPREDICTABLE random movement - NO DELAY!
    */
   private startCircularWandering(): void {
-    // NO DELAY - langsung mulai movement untuk mencegah karakter diam
-    const { gridWidth, gridHeight, gameAreaWidth, gameAreaHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
-
     // Pilih pola movement secara RANDOM
     const patterns = ['random', 'circular', 'figure8', 'chaos'];
     const pattern = patterns[Math.floor(Math.random() * patterns.length)];
