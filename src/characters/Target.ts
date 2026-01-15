@@ -102,11 +102,11 @@ export abstract class Target {
       y: finalY, // Move down to final position
       scale: 1, // Grow to full size
       alpha: 1, // Fade in to full opacity
-      duration: 10000,
+      duration: 1500, // Reduced from 10000ms (10s) to 1500ms (1.5s) for faster gameplay
       ease: "Cubic.easeInOut", // Accelerates as it approaches (more realistic)
       onUpdate: (tween) => {
-        // Show HP bar when alpha reaches 0.8 (hittable state)
-        if (this.container.alpha >= 0.8 && !this.hpBarVisible) {
+        // Show HP bar when alpha reaches 0.5 (hittable state) - lowered from 0.8 for faster gameplay
+        if (this.container.alpha >= 0.5 && !this.hpBarVisible) {
           this.showHpBar();
         }
       },
