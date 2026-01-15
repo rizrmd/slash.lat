@@ -303,49 +303,99 @@ export abstract class Target {
   }
 
   /**
-   * Start CIRCULAR/ARC wandering - melengkung/setengah melingkar
-   * Characters move in beautiful curved patterns
+   * Start UNPREDICTABLE random movement - gabungan berbagai pola acak
+   * Gerakan benar-benar random dan sulit ditebak
    */
   private startCircularWandering(): void {
-    const { gridWidth, gridHeight } = this.gameConfig;
+    const { gridWidth, gridHeight, gameAreaWidth, gameAreaHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
 
+    // Pilih pola movement secara RANDOM
+    const patterns = ['random', 'circular', 'figure8', 'chaos'];
+    const pattern = patterns[Math.floor(Math.random() * patterns.length)];
+
+    console.log(`🎲 RANDOM movement pattern: ${pattern}`);
+
+    switch (pattern) {
+      case 'random':
+        this.startRandomWaypoints();
+        break;
+      case 'circular':
+        this.startCircularMotion();
+        break;
+      case 'figure8':
+        this.startFigure8Motion();
+        break;
+      case 'chaos':
+        this.startChaosMotion();
+        break;
+    }
+  }
+
+  /**
+   * Pattern 1: Random waypoints - completely unpredictable
+   */
+  private startRandomWaypoints(): void {
+    const { gameAreaWidth, gameAreaHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop } = this.gameConfig;
+
+    const minX = gameAreaOffsetX + gridMarginLeft + 50;
+    const maxX = gameAreaOffsetX + gridMarginLeft + gameAreaWidth - 50;
+    const minY = gameAreaOffsetY + gridMarginTop + 50;
+    const maxY = gameAreaOffsetY + gridMarginTop + gameAreaHeight - 50;
+
+    const moveToRandom = () => {
+      const targetX = minX + Math.random() * (maxX - minX);
+      const targetY = minY + Math.random() * (maxY - minY);
+      const duration = 500 + Math.random() * 1000; // 0.5-1.5 seconds (random speed)
+
+      this.scene.tweens.add({
+        targets: this.container,
+        x: targetX,
+        y: targetY,
+        duration: duration,
+        ease: Math.random() > 0.5 ? 'Sine.easeInOut' : 'Quad.easeInOut',
+        onComplete: () => moveToRandom(),
+      });
+    };
+
+    moveToRandom();
+  }
+
+  /**
+   * Pattern 2: Circular motion dengan radius acak
+   */
+  private startCircularMotion(): void {
+    const { gridWidth, gridHeight } = this.gameConfig;
     const centerX = this.container.x;
     const centerY = this.container.y;
-
-    // Random radius for circular movement - LARGER for more visible movement
     const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
-    const radius = cellSize * (0.8 + Math.random() * 1.2); // 80%-200% of cell size
 
-    // Random direction (clockwise or counter-clockwise)
+    // Random radius - kadang kecil, kadang besar
+    const radius = cellSize * (0.3 + Math.random() * 1.5); // 30%-180% dari cell
     const clockwise = Math.random() > 0.5;
+    const arcPoints = 10 + Math.floor(Math.random() * 10); // 10-19 points (random!)
 
-    // Generate arc waypoints (setengah lingkaran/penuh)
     const waypoints: Array<{ x: number; y: number }> = [];
-    const arcPoints = 16; // More points for smoother arc
-
     for (let i = 0; i < arcPoints; i++) {
       const angle = (Math.PI * 2 * i) / arcPoints;
-      const x = centerX + Math.cos(angle) * radius;
-      const y = centerY + Math.sin(angle) * radius;
-      waypoints.push({ x, y });
+      waypoints.push({
+        x: centerX + Math.cos(angle) * radius,
+        y: centerY + Math.sin(angle) * radius,
+      });
     }
 
-    console.log(`🌀 CIRCULAR wandering START: ${waypoints.length} points, radius=${radius.toFixed(0)}, clockwise=${clockwise}`);
+    console.log(`⭕ Circular: radius=${radius.toFixed(0)}, points=${arcPoints}, clockwise=${clockwise}`);
 
     let currentWaypoint = 0;
-
     const moveToNext = () => {
       const target = waypoints[clockwise ? currentWaypoint : (waypoints.length - 1 - currentWaypoint)];
-
-      // FASTER speed - like real enemies!
-      const duration = 600 + Math.random() * 600; // 0.6-1.2 seconds (FAST!)
+      const duration = 400 + Math.random() * 800;
 
       this.scene.tweens.add({
         targets: this.container,
         x: target.x,
         y: target.y,
         duration: duration,
-        ease: "Sine.easeInOut",
+        ease: 'Sine.easeInOut',
         onComplete: () => {
           currentWaypoint = (currentWaypoint + 1) % waypoints.length;
           moveToNext();
@@ -353,8 +403,115 @@ export abstract class Target {
       });
     };
 
-    // Start circular movement immediately
     moveToNext();
+  }
+
+  /**
+   * Pattern 3: Figure-8 (infinity symbol)
+   */
+  private startFigure8Motion(): void {
+    const { gridWidth, gridHeight } = this.gameConfig;
+    const centerX = this.container.x;
+    const centerY = this.container.y;
+    const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
+
+    const radiusX = cellSize * (0.5 + Math.random() * 1.0); // Horizontal radius
+    const radiusY = cellSize * (0.3 + Math.random() * 0.8); // Vertical radius (lebih kecil)
+
+    const waypoints: Array<{ x: number; y: number }> = [];
+    const points = 16;
+
+    for (let i = 0; i < points; i++) {
+      const t = (Math.PI * 2 * i) / points;
+      // Lissajous curve untuk figure-8
+      waypoints.push({
+        x: centerX + Math.sin(t) * radiusX,
+        y: centerY + Math.sin(t * 2) * radiusY,
+      });
+    }
+
+    console.log(`∞ Figure-8: radiusX=${radiusX.toFixed(0)}, radiusY=${radiusY.toFixed(0)}`);
+
+    let currentWaypoint = 0;
+    const moveToNext = () => {
+      const target = waypoints[currentWaypoint];
+      const duration = 500 + Math.random() * 700;
+
+      this.scene.tweens.add({
+        targets: this.container,
+        x: target.x,
+        y: target.y,
+        duration: duration,
+        ease: 'Sine.easeInOut',
+        onComplete: () => {
+          currentWaypoint = (currentWaypoint + 1) % waypoints.length;
+          moveToNext();
+        },
+      });
+    };
+
+    moveToNext();
+  }
+
+  /**
+   * Pattern 4: CHAOS - campuran semua pola secara acak
+   */
+  private startChaosMotion(): void {
+    const { gameAreaWidth, gameAreaHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, gridWidth, gridHeight } = this.gameConfig;
+
+    const centerX = this.container.x;
+    const centerY = this.container.y;
+    const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
+
+    const moveChaos = () => {
+      // Random setiap kali: pilih pola berbeda!
+      const chaosType = Math.random();
+
+      if (chaosType < 0.3) {
+        // Random jump
+        const minX = gameAreaOffsetX + gridMarginLeft + 50;
+        const maxX = gameAreaOffsetX + gridMarginLeft + gameAreaWidth - 50;
+        const minY = gameAreaOffsetY + gridMarginTop + 50;
+        const maxY = gameAreaOffsetY + gridMarginTop + gameAreaHeight - 50;
+
+        this.scene.tweens.add({
+          targets: this.container,
+          x: minX + Math.random() * (maxX - minX),
+          y: minY + Math.random() * (maxY - minY),
+          duration: 300 + Math.random() * 500,
+          ease: 'Quad.easeInOut',
+          onComplete: () => moveChaos(),
+        });
+      } else if (chaosType < 0.6) {
+        // Small circle
+        const radius = cellSize * (0.2 + Math.random() * 0.4);
+        const angle = Math.random() * Math.PI * 2;
+
+        this.scene.tweens.add({
+          targets: this.container,
+          x: centerX + Math.cos(angle) * radius,
+          y: centerY + Math.sin(angle) * radius,
+          duration: 400 + Math.random() * 400,
+          ease: 'Sine.easeInOut',
+          onComplete: () => moveChaos(),
+        });
+      } else {
+        // Diagonal dash
+        const dashDistance = cellSize * (0.5 + Math.random() * 1.0);
+        const angle = Math.random() * Math.PI * 2;
+
+        this.scene.tweens.add({
+          targets: this.container,
+          x: this.container.x + Math.cos(angle) * dashDistance,
+          y: this.container.y + Math.sin(angle) * dashDistance,
+          duration: 350 + Math.random() * 450,
+          ease: 'Quad.easeOut',
+          onComplete: () => moveChaos(),
+        });
+      }
+    };
+
+    moveChaos();
   }
 
   /**
