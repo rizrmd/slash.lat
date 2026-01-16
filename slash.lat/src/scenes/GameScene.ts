@@ -364,7 +364,7 @@ export class GameScene extends Scene {
       this.backgroundContainer = this.add.container(0, 0);
       this.backgroundContainer.setDepth(-10000);
 
-      console.log(`✓ MOBILE Background + Particles: ${this.selectedBackground} - depth:-100,-90`);
+      console.log(`[OK] MOBILE Background + Particles: ${this.selectedBackground} - depth:-100,-90`);
     } else {
       // DESKTOP: Use container for parallax
       this.backgroundContainer = this.add.container(fullCanvasWidth / 2, fullCanvasHeight / 2);
@@ -392,7 +392,7 @@ export class GameScene extends Scene {
       this.backgroundContainer.add(this.backgroundParticles);
 
       this.gameBackground.setAlpha(1.0);
-      console.log(`✓ DESKTOP Background: ${fullCanvasWidth.toFixed(0)}x${fullCanvasHeight.toFixed(0)}`);
+      console.log(`[OK] DESKTOP Background: ${fullCanvasWidth.toFixed(0)}x${fullCanvasHeight.toFixed(0)}`);
     }
 
     // Track current background
@@ -429,15 +429,15 @@ export class GameScene extends Scene {
     // IMPORTANT: Make sure background IS ignored by UI camera (only shown in main camera)
     if (this.testRect) {
       this.uiCamera?.ignore(this.testRect);
-      console.log(`✓ Test Rectangle ignored by UI camera`);
+      console.log(`[OK] Test Rectangle ignored by UI camera`);
     }
     if (this.gameBackground) {
       this.uiCamera?.ignore(this.gameBackground);
-      console.log(`✓ Background ignored by UI camera - alpha:${this.gameBackground.alpha}, visible:${this.gameBackground.visible}, depth:${this.gameBackground.depth}`);
+      console.log(`[OK] Background ignored by UI camera - alpha:${this.gameBackground.alpha}, visible:${this.gameBackground.visible}, depth:${this.gameBackground.depth}`);
     }
     if (this.backgroundContainer) {
       this.uiCamera?.ignore(this.backgroundContainer);
-      console.log(`✓ Background container ignored - depth:${this.backgroundContainer.depth}, visible:${this.backgroundContainer.visible}`);
+      console.log(`[OK] Background container ignored - depth:${this.backgroundContainer.depth}, visible:${this.backgroundContainer.visible}`);
     }
 
     // Initialize audio manager sounds
@@ -502,7 +502,7 @@ export class GameScene extends Scene {
           this.spawnEnemy(characterClass, position);
         },
         onDifficultyChange: (tierIndex: number) => {
-          console.log(`⚠️ DIFFICULTY INCREASED! Tier ${tierIndex + 1}/12`);
+          console.log(`[WARNING] DIFFICULTY INCREASED! Tier ${tierIndex + 1}/12`);
         },
       },
       this.gameConfig
@@ -994,7 +994,7 @@ export class GameScene extends Scene {
 
     this.gameBackground.setDisplaySize(displayWidth, displayHeight);
 
-    console.log(`🎨 Background: ${finalBgKey} → ${displayWidth.toFixed(0)}x${displayHeight.toFixed(0)} (COVER MODE)`);
+    console.log(`[BG] Background: ${finalBgKey} -> ${displayWidth.toFixed(0)}x${displayHeight.toFixed(0)} (COVER MODE)`);
   }
 
   /**
@@ -1322,7 +1322,7 @@ export class GameScene extends Scene {
       this.levelProgressText.setColor('#FFD700'); // Gold color
     } else {
       // Max level reached
-      this.levelProgressText.setText('MAX LEVEL! 🎉');
+      this.levelProgressText.setText('MAX LEVEL!');
       this.levelProgressText.setColor('#00FF00'); // Green color
     }
   }
@@ -1455,7 +1455,7 @@ export class GameScene extends Scene {
         selectedBackground: this.selectedBackground,
       };
       localStorage.setItem('slashlat_save', JSON.stringify(saveData));
-      console.log(`💾 Saved: Level ${this.playerLevel}, Coins ${this.coins}, Background ${this.selectedBackground}`);
+      console.log(`[SAVE] Saved: Level ${this.playerLevel}, Coins ${this.coins}, Background ${this.selectedBackground}`);
     } catch (e) {
       console.warn('Failed to save progress:', e);
     }
@@ -1479,7 +1479,7 @@ export class GameScene extends Scene {
           this.coinText.setText(`${this.coins}`);
         }
 
-        console.log(`📂 Loaded: Level ${this.playerLevel}, Coins ${this.coins}, Backgrounds ${this.unlockedBackgrounds.length}/4`);
+        console.log(`[LOAD] Loaded: Level ${this.playerLevel}, Coins ${this.coins}, Backgrounds ${this.unlockedBackgrounds.length}/4`);
       }
     } catch (e) {
       console.warn('Failed to load progress:', e);
@@ -1496,7 +1496,7 @@ export class GameScene extends Scene {
     if (newLevel > this.playerLevel) {
       // Level up!
       this.playerLevel = newLevel;
-      console.log(`⬆️ LEVEL UP! Now level ${this.playerLevel}`);
+      console.log(`[LEVEL UP] Now level ${this.playerLevel}`);
 
       // Check for new background unlocks
       this.backgroundLevels.forEach((levelData) => {
@@ -1548,7 +1548,7 @@ export class GameScene extends Scene {
           this.spawnEnemy(characterClass, position);
         },
         onDifficultyChange: (tierIndex: number) => {
-          console.log(`⚠️ DIFFICULTY INCREASED! Tier ${tierIndex + 1}/12`);
+          console.log(`[WARNING] DIFFICULTY INCREASED! Tier ${tierIndex + 1}/12`);
         },
       },
       this.gameConfig
@@ -1557,7 +1557,7 @@ export class GameScene extends Scene {
     // Start new progression
     this.progressionManager.start();
 
-    console.log(`🔄 Progression config updated for Level ${this.playerLevel}`);
+    console.log(`[UPDATE] Progression config updated for Level ${this.playerLevel}`);
   }
 
   /**
@@ -1667,7 +1667,7 @@ export class GameScene extends Scene {
     notification.add(panel);
 
     // Level up title
-    const title = this.add.text(0, -80, '🎉 LEVEL UP!', {
+    const title = this.add.text(0, -80, 'LEVEL UP!', {
       fontSize: '42px',
       color: '#ffd700',
       fontStyle: 'bold',
@@ -1818,7 +1818,7 @@ export class GameScene extends Scene {
     const levelData = this.backgroundLevels.find(level => level.background === backgroundKey);
 
     const message = levelData
-      ? `🎨 ${levelData.name.toUpperCase()} (Level ${this.backgroundLevels.indexOf(levelData) + 1})`
+      ? `${levelData.name.toUpperCase()} (Level ${this.backgroundLevels.indexOf(levelData) + 1})`
       : `Background: ${backgroundKey.toUpperCase()}`;
 
     const notification = this.add.text(canvasWidth / 2, canvasHeight / 2 - 120, message, {
@@ -1875,7 +1875,7 @@ export class GameScene extends Scene {
 
     this.gameBackground.setDisplaySize(displayWidth, displayHeight);
 
-    console.log(`🎨 Background changed to: ${backgroundKey}`);
+    console.log(`[BG] Background changed to: ${backgroundKey}`);
   }
 
   takeDamage(damage: number, enemyX?: number, enemyY?: number): void {

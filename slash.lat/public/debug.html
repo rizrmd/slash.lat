@@ -1,18 +1,37 @@
 <!DOCTYPE html>
 <html>
+
 <head>
   <title>Slash.lat Debug</title>
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <style>
-    body { font-family: monospace; padding: 20px; background: #000; color: #0f0; }
-    .error { color: #f00; }
-    .success { color: #0f0; }
-    .warning { color: #ff0; }
-    h2 { margin-top: 30px; }
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #000;
+      color: #0f0;
+    }
+
+    .error {
+      color: #f00;
+    }
+
+    .success {
+      color: #0f0;
+    }
+
+    .warning {
+      color: #ff0;
+    }
+
+    h2 {
+      margin-top: 30px;
+    }
   </style>
 </head>
+
 <body>
-  <h1>🔍 Slash.lat Debug Info</h1>
+  <h1>Slash.lat Debug Info</h1>
 
   <h2>1. Browser Info</h2>
   <div id="browser-info"></div>
@@ -54,12 +73,12 @@
     assets.forEach(asset => {
       fetch(asset, { method: 'HEAD' })
         .then(response => {
-          const status = response.ok ? '✅' : '❌';
+          const status = response.ok ? '[OK]' : '[ERROR]';
           const color = response.ok ? 'success' : 'error';
           assetHtml += `<p class="${color}">${status} ${asset} (${response.status})</p>`;
         })
         .catch(error => {
-          assetHtml += `<p class="error">❌ ${asset} - ${error.message}</p>`;
+          assetHtml += `<p class="error">[ERROR] ${asset} - ${error.message}</p>`;
         });
     });
 
@@ -71,10 +90,10 @@
     document.body.innerHTML += `
       <h2>5. Actions</h2>
       <button onclick="location.reload(true)" style="padding: 10px 20px; font-size: 16px;">
-        🔄 Hard Refresh (Bypass Cache)
+        [REFRESH] Hard Refresh (Bypass Cache)
       </button>
       <button onclick="clearCache()" style="padding: 10px 20px; font-size: 16px; margin-left: 10px;">
-        🗑️ Clear All Cache
+        [CLEAR] Clear All Cache
       </button>
       <p id="cache-status"></p>
     `;
@@ -84,13 +103,14 @@
         const names = await caches.keys();
         await Promise.all(names.map(name => caches.delete(name)));
         document.getElementById('cache-status').innerHTML =
-          '<span class="success">✅ Cache cleared! Reloading...</span>';
+          '<span class="success">[OK] Cache cleared! Reloading...</span>';
         setTimeout(() => location.reload(true), 1000);
       } else {
         document.getElementById('cache-status').innerHTML =
-          '<span class="warning">⚠️ Cache API not supported</span>';
+          '<span class="warning">[WARNING] Cache API not supported</span>';
       }
     }
   </script>
 </body>
+
 </html>

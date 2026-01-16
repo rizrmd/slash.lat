@@ -1135,7 +1135,7 @@ export abstract class Target {
 
     // 30% chance to change movement pattern
     if (Math.random() < 0.3) {
-      // console.log(`⚡ Reacting to damage! Changing movement...`);
+      // console.log(`Reacting to damage! Changing movement...`);
       this.changeMovementPattern();
     }
   }
@@ -1150,7 +1150,7 @@ export abstract class Target {
 
     // 60% chance to change movement pattern (fear reaction!)
     if (Math.random() < 0.6) {
-      // console.log(`💀 Teammate killed! Changing movement in fear!`);
+      // console.log(`Teammate killed! Changing movement in fear!`);
       this.changeMovementPattern();
     }
   }
