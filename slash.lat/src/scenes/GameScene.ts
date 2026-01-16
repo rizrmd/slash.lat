@@ -1292,23 +1292,38 @@ export class GameScene extends Scene {
    * Update level progress text to show target for next level
    */
   updateLevelProgressText(): void {
+    // Safety check: Don't update if scene is not ready
+    if (!this.scene || !this.scene.isActive() || !this.uiLayer) {
+      return;
+    }
+
     if (!this.levelProgressText) {
       // Create the text if it doesn't exist
       const { canvasWidth, dpr } = this.gameConfig;
       const padding = 20 * dpr;
 
-      this.levelProgressText = this.add
-        .text(this.coinCounterX, this.coinCounterY + 25 * dpr, '', {
-          fontFamily: "Jura, sans-serif",
-          fontSize: `${12 * dpr}px`,
-          color: "#AAAAAA",
-          fontStyle: "normal",
-          stroke: "#000000",
-          strokeThickness: 2 * dpr,
-        })
-        .setOrigin(1, 0) // Top-right origin
-        .setDepth(100);
-      this.uiLayer!.add(this.levelProgressText);
+      try {
+        this.levelProgressText = this.add
+          .text(this.coinCounterX, this.coinCounterY + 25 * dpr, '', {
+            fontFamily: "Jura, sans-serif",
+            fontSize: `${12 * dpr}px`,
+            color: "#AAAAAA",
+            fontStyle: "normal",
+            stroke: "#000000",
+            strokeThickness: 2 * dpr,
+          })
+          .setOrigin(1, 0) // Top-right origin
+          .setDepth(100);
+        this.uiLayer!.add(this.levelProgressText);
+      } catch (e) {
+        console.warn('Failed to create level progress text:', e);
+        return;
+      }
+    }
+
+    // Safety check: Ensure text object is valid before updating
+    if (!this.levelProgressText || !this.levelProgressText.active) {
+      return;
     }
 
     // Find next level target
@@ -1321,15 +1336,19 @@ export class GameScene extends Scene {
     }
 
     // Update text based on current progress
-    if (nextTarget) {
-      // Show progress to next level
-      const progress = Math.min(100, (this.coins / nextTarget.coins) * 100);
-      this.levelProgressText.setText(`Next Level: ${nextTarget.coins.toLocaleString()} coins (${progress.toFixed(0)}%)`);
-      this.levelProgressText.setColor('#FFD700'); // Gold color
-    } else {
-      // Max level reached
-      this.levelProgressText.setText('MAX LEVEL!');
-      this.levelProgressText.setColor('#00FF00'); // Green color
+    try {
+      if (nextTarget) {
+        // Show progress to next level
+        const progress = Math.min(100, (this.coins / nextTarget.coins) * 100);
+        this.levelProgressText.setText(`Next Level: ${nextTarget.coins.toLocaleString()} coins (${progress.toFixed(0)}%)`);
+        this.levelProgressText.setColor('#FFD700'); // Gold color
+      } else {
+        // Max level reached
+        this.levelProgressText.setText('MAX LEVEL!');
+        this.levelProgressText.setColor('#00FF00'); // Green color
+      }
+    } catch (e) {
+      console.warn('Failed to update level progress text:', e);
     }
   }
 
