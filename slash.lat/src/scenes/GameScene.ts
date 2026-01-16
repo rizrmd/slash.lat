@@ -690,17 +690,14 @@ export class GameScene extends Scene {
 
     // Show damage numbers for all targets hit during this slash
     if (this.hitTargetsThisSlash.size > 0) {
-      // Calculate damage based on slash length (50-100)
-      const maxSlashLength = 300 * this.gameConfig.dpr;
-      const damage = Math.min(
-        50 + (this.currentSlashLength / maxSlashLength) * 50,
-        100
-      );
+      // One-hit kill damage (Precision Slash)
+      const damage = 9999;
 
       // Process each hit target
       for (const target of this.hitTargetsThisSlash) {
-        // Use target's center position for damage text (not last hit position)
+        // Use target's center position for damage text
         const targetBounds = target.getContainer().getBounds();
+        // Show SLASH! text instead of numbers
         const damageText = target.showDamage(
           damage,
           targetBounds.centerX,
@@ -1844,6 +1841,8 @@ export class GameScene extends Scene {
   }
 
   takeDamage(damage: number, enemyX?: number, enemyY?: number): void {
+    if (this.currentHP <= 0) return; // Already dead
+
     this.currentHP = Math.max(0, this.currentHP - damage);
     this.updateHPBar();
 
@@ -1860,6 +1859,113 @@ export class GameScene extends Scene {
     if (enemyX !== undefined && enemyY !== undefined) {
       this.spawnBloodParticles(enemyX, enemyY);
     }
+
+    // Check for death
+    if (this.currentHP <= 0) {
+      this.gameOver();
+    }
+  }
+
+  gameOver(): void {
+    // 1. Stop all game systems
+    this.progressionManager?.stop();
+    this.input.off("pointerdown");
+    this.input.off("pointermove");
+    this.input.off("pointerup");
+    this.tweens.killAll();
+    this.isPlayerActive = false;
+
+    // 2. Visual Effects
+    this.cameras.main.shake(500, 0.05);
+    this.audioManager?.play("explode"); // Big explosion sound
+
+    // Dark overlay
+    const overlay = this.add.rectangle(
+      this.gameConfig.canvasWidth / 2,
+      this.gameConfig.canvasHeight / 2,
+      this.gameConfig.canvasWidth,
+      this.gameConfig.canvasHeight,
+      0x000000,
+      0
+    );
+    overlay.setDepth(10000);
+    this.uiCamera?.ignore(overlay); // Show in main camera or UI? UI is better
+
+    // Animate overlay
+    this.tweens.add({
+      targets: overlay,
+      fillAlpha: 0.8,
+      duration: 1000,
+      onComplete: () => {
+        this.showGameOverUI();
+      }
+    });
+
+    // Save final stats potentially?
+    this.saveProgress();
+  }
+
+  showGameOverUI(): void {
+    const { canvasWidth, canvasHeight } = this.gameConfig;
+    const centerX = canvasWidth / 2;
+    const centerY = canvasHeight / 2;
+
+    const container = this.add.container(centerX, centerY);
+    container.setDepth(10001);
+
+    // GAME OVER Text
+    const title = this.add.text(0, -50, "GAME OVER", {
+      fontSize: "64px",
+      color: "#ff0000",
+      fontStyle: "bold",
+      stroke: "#ffffff",
+      strokeThickness: 4
+    }).setOrigin(0.5).setAlpha(0);
+
+    // Score Text
+    const scoreText = this.add.text(0, 20, `Coins Collected: ${this.coins}`, {
+      fontSize: "32px",
+      color: "#ffd700",
+      fontFamily: "Jura"
+    }).setOrigin(0.5).setAlpha(0);
+
+    // Level Text
+    const levelText = this.add.text(0, 60, `Reached Level: ${this.playerLevel}`, {
+      fontSize: "24px",
+      color: "#ffffff",
+      fontFamily: "Jura"
+    }).setOrigin(0.5).setAlpha(0);
+
+    // Retry Button
+    const btnBg = this.add.rectangle(0, 150, 200, 60, 0xffffff).setInteractive({ cursor: 'pointer' });
+    const btnText = this.add.text(0, 150, "RETRY", {
+      fontSize: "28px",
+      color: "#000000",
+      fontStyle: "bold"
+    }).setOrigin(0.5);
+
+    const btnContainer = this.add.container(0, 0, [btnBg, btnText]).setAlpha(0);
+
+    container.add([title, scoreText, levelText, btnContainer]);
+
+    // Button interactions
+    btnBg.on('pointerover', () => btnBg.setFillStyle(0xdddddd));
+    btnBg.on('pointerout', () => btnBg.setFillStyle(0xffffff));
+    btnBg.on('pointerdown', () => {
+      // Reload page to restart fresh (easiest way to clear everything)
+      window.location.reload();
+    });
+
+    // Animation Sequence
+    this.tweens.timeline({
+      targets: [title, scoreText, levelText, btnContainer],
+      tweens: [
+        { targets: title, alpha: 1, y: -80, duration: 500, ease: 'Back.out' },
+        { targets: scoreText, alpha: 1, duration: 400, offset: 300 },
+        { targets: levelText, alpha: 1, duration: 400, offset: 100 },
+        { targets: btnContainer, alpha: 1, duration: 400, offset: 100 }
+      ]
+    });
   }
 
   flashHealthBarRed(): void {
