@@ -802,30 +802,21 @@ export class GameScene extends Scene {
           // Notify other enemies that this enemy is about to die
           this.events.emit('enemy-killed', target);
 
-          // Trigger explosion animation and fade out
-          const explosionObjects = target.explode(() => {
-            // Destroy target after explosion
-            target.destroy();
-            // Remove from targets array
-            const index = this.targets.indexOf(target);
-            if (index > -1) {
-              this.targets.splice(index, 1);
-            }
-
-            // Notify progression manager that enemy was killed
-            this.progressionManager?.onEnemyKilled();
-          });
+          // Trigger explosion animation
+          const explosionObjects = target.explode();
 
           // Make UI camera ignore all explosion objects
           explosionObjects.forEach((obj) => this.ignoreFromUICamera(obj));
 
-          // Fade out the dying target (slower to see the explosion)
-          this.tweens.add({
-            targets: target.getContainer(),
-            alpha: 0,
-            duration: 800,
-            ease: "Cubic.easeOut",
-          });
+          // IMMEDIATELY destroy target and remove from array to prevent ghost
+          target.destroy();
+          const index = this.targets.indexOf(target);
+          if (index > -1) {
+            this.targets.splice(index, 1);
+          }
+
+          // Notify progression manager that enemy was killed
+          this.progressionManager?.onEnemyKilled();
         }
       }
     }
@@ -1164,6 +1155,21 @@ export class GameScene extends Scene {
   update(): void {
     // Update slash trail
     this.slashTrail?.update();
+
+    // CLEANUP: Remove any ghost/invisible targets (alpha=0 or container destroyed)
+    this.targets = this.targets.filter(target => {
+      const container = target.getContainer();
+      // Remove if container is destroyed or completely invisible
+      if (!container || !container.active || container.alpha <= 0.01) {
+        try {
+          target.destroy();
+        } catch (e) {
+          // Already destroyed
+        }
+        return false;
+      }
+      return true;
+    });
 
     // BACKGROUND PARALLAX (Real-time depth reaction)
     const { canvasWidth, canvasHeight, isMobile, dpr } = this.gameConfig;
@@ -1576,7 +1582,7 @@ export class GameScene extends Scene {
             {
               startTime: 0,
               enemies: [{ characterClass: OrangeBot, weight: 1 }],
-              maxConcurrent: 8,
+              maxConcurrent: 4,
               spawnInterval: 1000,
             },
           ],
@@ -1596,7 +1602,7 @@ export class GameScene extends Scene {
                 { characterClass: OrangeBot, weight: 6 },
                 { characterClass: LeafBot, weight: 4 },
               ],
-              maxConcurrent: 10,
+              maxConcurrent: 5,
               spawnInterval: 800,
             },
           ],
@@ -1617,7 +1623,7 @@ export class GameScene extends Scene {
                 { characterClass: LeafBot, weight: 4 },
                 { characterClass: FlyBot, weight: 2 },
               ],
-              maxConcurrent: 12,
+              maxConcurrent: 6,
               spawnInterval: 600,
             },
           ],
