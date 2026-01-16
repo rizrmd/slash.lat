@@ -25,6 +25,7 @@ export class GameScene extends Scene {
   private sparks?: Sparks;
   private audioManager?: AudioManager;
   private canStartNewSlash: boolean = true;
+  private isSlashCooldown: boolean = false; // New cooldown flag
   private hasHitTarget: boolean = false;
   private currentSlashLength: number = 0;
   private uiCamera?: Phaser.Cameras.Scene2D.Camera;
@@ -483,8 +484,8 @@ export class GameScene extends Scene {
     this.lastActivityTime = Date.now();
     this.updateActivityStatus(true);
 
-    // Only allow starting new slash if previous one is complete
-    if (!this.canStartNewSlash || !this.slashTrail) return;
+    // Only allow starting new slash if previous one is complete AND not on cooldown
+    if (!this.canStartNewSlash || this.isSlashCooldown || !this.slashTrail) return;
 
     // Convert screen coordinates to game area coordinates
     const gamePos = this.screenToGame(pointer.x, pointer.y);
@@ -686,6 +687,17 @@ export class GameScene extends Scene {
   onPointerUp(): void {
     if (this.slashTrail?.isCurrentlyDrawing()) {
       this.slashTrail.endDrawing();
+
+      // TRIGGER COOLDOWN
+      this.isSlashCooldown = true;
+      this.canStartNewSlash = false; // Ensure locked
+
+      // Cooldown visualization (optional, maybe dim weapon icon?)
+      // For now just logic: 600ms cooldown
+      this.time.delayedCall(600, () => {
+        this.isSlashCooldown = false;
+        this.canStartNewSlash = true;
+      });
     }
 
     // Show damage numbers for all targets hit during this slash
@@ -1956,15 +1968,21 @@ export class GameScene extends Scene {
       window.location.reload();
     });
 
-    // Animation Sequence
-    this.tweens.timeline({
-      targets: [title, scoreText, levelText, btnContainer],
-      tweens: [
-        { targets: title, alpha: 1, y: -80, duration: 500, ease: 'Back.out' },
-        { targets: scoreText, alpha: 1, duration: 400, offset: 300 },
-        { targets: levelText, alpha: 1, duration: 400, offset: 100 },
-        { targets: btnContainer, alpha: 1, duration: 400, offset: 100 }
-      ]
+    // Animation Sequence (Manual chain for Phaser 4 compatibility)
+    this.tweens.add({
+      targets: title,
+      alpha: 1,
+      y: -80,
+      duration: 500,
+      ease: 'Back.out',
+      onComplete: () => {
+        this.tweens.add({
+          targets: [scoreText, levelText, btnContainer],
+          alpha: 1,
+          duration: 400,
+          y: '+=20' // Subtle float up effect
+        });
+      }
     });
   }
 

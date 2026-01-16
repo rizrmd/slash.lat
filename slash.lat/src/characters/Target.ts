@@ -196,6 +196,10 @@ export abstract class Target {
 
         // Notify subclasses when fully visible
         this.onFullyVisible();
+
+        // START ATTACK TIMER (Kill or Be Killed!)
+        // If player doesn't kill this target within 3000ms, it attacks!
+        this.startAttackTimer();
       },
     });
   }
@@ -1179,7 +1183,58 @@ export abstract class Target {
     this.container.destroy();
   }
 
-  // Abstract methods to be implemented by specific targets
+  // Attack timer logic
+  protected startAttackTimer(): void {
+    // Randomize attack time slightly (2000 - 4000ms)
+    const attackDelay = 2000 + Math.random() * 2000;
+
+    this.scene.time.delayedCall(attackDelay, () => {
+      if (this.isDead() || !this.scene || !this.container.active) return;
+
+      // ATTACK PLAYER!
+      this.attackPlayer();
+    });
+  }
+
+  protected attackPlayer(): void {
+    if (this.isDead()) return;
+
+    // Visual feedback: Enemy lunges/flashes before hitting
+    this.scene.tweens.add({
+      targets: this.container,
+      scale: this.container.scale * 1.5,
+      alpha: 1,
+      duration: 300,
+      yoyo: true,
+      onComplete: () => {
+        if (this.isDead()) return;
+
+        // Deal damage to player
+        const gameScene = this.scene as any;
+        // 200 damage = player dies in 5 hits (if max HP 1000)
+        // Or make it more punishing? 
+        if (gameScene.takeDamage) {
+          gameScene.takeDamage(250, this.container.x, this.container.y);
+
+          // Play hit sound
+          this.audioManager.play("punch-hit");
+        }
+
+        // Enemy leaves after attacking (or dies?)
+        // Let's make them vanish laughingly
+        this.scene.tweens.add({
+          targets: this.container,
+          alpha: 0,
+          scale: 0,
+          duration: 500,
+          onComplete: () => {
+            this.destroy();
+          }
+        });
+      }
+    });
+  }
+
   abstract getAssetKey(): string;
   abstract getSize(): { w: number; h: number };
   abstract getAudioKeys(): { slash?: string; hit?: string; spark?: string };
