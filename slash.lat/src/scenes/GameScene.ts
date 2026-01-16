@@ -171,6 +171,17 @@ export class GameScene extends Scene {
       this.backgroundContainer.setPosition(this.gameConfig.canvasWidth / 2, this.gameConfig.canvasHeight / 2);
     }
 
+    // Mobile: Center background image and particles directly (since they're not in the container)
+    const { isMobile } = this.gameConfig;
+    if (isMobile) {
+      if (this.gameBackground) {
+        this.gameBackground.setPosition(this.gameConfig.canvasWidth / 2, this.gameConfig.canvasHeight / 2);
+      }
+      if (this.backgroundParticles) {
+        this.backgroundParticles.setPosition(this.gameConfig.canvasWidth / 2, this.gameConfig.canvasHeight / 2);
+      }
+    }
+
     this.updateBackgroundSize();
 
     // Rebuild UI to fit new layout
@@ -328,7 +339,11 @@ export class GameScene extends Scene {
 
       // Safety: scale up slightly (5%) to ensure no black edges / rounding gaps
       this.gameBackground.setDisplaySize(displayWidth * 1.05, displayHeight * 1.05);
-      this.gameBackground.setDepth(-100);
+
+      // Ensure it's centered
+      this.gameBackground.setPosition(fullCanvasWidth / 2, fullCanvasHeight / 2);
+
+      this.gameBackground.setDepth(-10); // Less extreme negative depth
       this.gameBackground.setAlpha(1.0);
 
       // ADD PARTICLES FOR MOBILE FOR "ALIVE" FEEL
@@ -343,7 +358,7 @@ export class GameScene extends Scene {
         quantity: 1,
         frequency: 300,
       });
-      this.backgroundParticles.setDepth(-90);
+      this.backgroundParticles.setDepth(-5);
 
       // Create a dummy container for compatibility
       this.backgroundContainer = this.add.container(0, 0);
