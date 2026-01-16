@@ -1156,18 +1156,23 @@ export class GameScene extends Scene {
     // Update slash trail
     this.slashTrail?.update();
 
-    // CLEANUP: Remove any ghost/invisible targets (alpha=0 or container destroyed)
+    // CLEANUP: Remove any ghost/invisible targets (dead and invisible, or container destroyed)
     this.targets = this.targets.filter(target => {
       const container = target.getContainer();
-      // Remove if container is destroyed or completely invisible
-      if (!container || !container.active || container.alpha <= 0.01) {
-        try {
-          target.destroy();
-        } catch (e) {
-          // Already destroyed
-        }
+
+      // Safety check: Remove if container is destroyed/inactive
+      if (!container || !container.active) {
+        try { target.destroy(); } catch (e) { }
         return false;
       }
+
+      // ONLY remove completely invisible targets if they are actually dead
+      // (Newly spawned enemies start at alpha 0, so we can't kill them based on alpha alone)
+      if (container.alpha <= 0.01 && target.isDead()) {
+        try { target.destroy(); } catch (e) { }
+        return false;
+      }
+
       return true;
     });
 
@@ -1601,7 +1606,7 @@ export class GameScene extends Scene {
             {
               startTime: 0,
               enemies: [{ characterClass: OrangeBot, weight: 1 }],
-              maxConcurrent: 4,
+              maxConcurrent: 6,
               spawnInterval: 1000,
             },
           ],
@@ -1621,7 +1626,7 @@ export class GameScene extends Scene {
                 { characterClass: OrangeBot, weight: 6 },
                 { characterClass: LeafBot, weight: 4 },
               ],
-              maxConcurrent: 5,
+              maxConcurrent: 8,
               spawnInterval: 800,
             },
           ],
@@ -1642,7 +1647,7 @@ export class GameScene extends Scene {
                 { characterClass: LeafBot, weight: 4 },
                 { characterClass: FlyBot, weight: 2 },
               ],
-              maxConcurrent: 6,
+              maxConcurrent: 10,
               spawnInterval: 600,
             },
           ],
