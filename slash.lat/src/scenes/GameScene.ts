@@ -38,7 +38,6 @@ export class GameScene extends Scene {
   private playerLevel: number = 1; // Player level based on total coins
   private unlockedBackgrounds: string[] = ['bg-orange']; // Start with default background
   private selectedBackground: string = 'bg-orange';
-  private testRect?: Phaser.GameObjects.Rectangle; // Test rectangle for mobile debugging
 
   // Background unlock levels
   private backgroundLevels = [
@@ -224,67 +223,7 @@ export class GameScene extends Scene {
     this.gameBackground.setDisplaySize(displayWidth * 1.05, displayHeight * 1.05);
   }
 
-  preload(): void {
-    // Load game backgrounds for each character
-    this.load.image("bg-orange", "image/bg-orange.png");
-    this.load.image("bg-leaf", "image/bg-leaf.png");
-    this.load.image("bg-fly", "image/bg-fly.png");
-
-    // Default galaxy background (fallback)
-    this.load.image("game-bg", "image/game-bg.png");
-
-    // Create a simple particle texture for sparks
-    const graphics = this.make.graphics({ x: 0, y: 0 });
-    graphics.fillStyle(0xffffff, 1);
-    graphics.fillCircle(2, 2, 2);
-    graphics.generateTexture("spark", 4, 4);
-    graphics.destroy();
-
-    // Create particle textures for explosion
-    // Fire particle (very small, orange-yellow)
-    const fireGraphics = this.make.graphics({ x: 0, y: 0 });
-    fireGraphics.fillStyle(0xffaa00, 1);
-    fireGraphics.fillCircle(2, 2, 2);
-    fireGraphics.generateTexture("fire-particle", 4, 4);
-    fireGraphics.destroy();
-
-    // Electricity particle (bright blue-white, star/cross shape)
-    const electricGraphics = this.make.graphics({ x: 0, y: 0 });
-    electricGraphics.fillStyle(0x00ffff, 1);
-    // Draw a cross/star shape for electric spark
-    electricGraphics.fillRect(3, 0, 2, 8); // Vertical line
-    electricGraphics.fillRect(0, 3, 8, 2); // Horizontal line
-    electricGraphics.fillTriangle(4, 0, 2, 3, 6, 3); // Top spike
-    electricGraphics.fillTriangle(4, 8, 2, 5, 6, 5); // Bottom spike
-    electricGraphics.fillTriangle(0, 4, 3, 2, 3, 6); // Left spike
-    electricGraphics.fillTriangle(8, 4, 5, 2, 5, 6); // Right spike
-    electricGraphics.generateTexture("electric-particle", 8, 8);
-    electricGraphics.destroy();
-
-    // Smoke particle (smaller, dark gray)
-    const smokeGraphics = this.make.graphics({ x: 0, y: 0 });
-    smokeGraphics.fillStyle(0x333333, 1);
-    smokeGraphics.fillCircle(6, 6, 6);
-    smokeGraphics.generateTexture("smoke-particle", 12, 12);
-    smokeGraphics.destroy();
-
-    // Blood particle (dark red droplet)
-    const bloodGraphics = this.make.graphics({ x: 0, y: 0 });
-    bloodGraphics.fillStyle(0x8b0000, 1);
-    bloodGraphics.fillCircle(4, 4, 4);
-    bloodGraphics.generateTexture("blood-particle", 8, 8);
-    bloodGraphics.destroy();
-
-    // Load animation frames for electric-leftover
-    for (let i = 6; i <= 10; i++) {
-      this.load.image(`electric-leftover-${i}`, `anim/electric-leftover/Explosion_blue_circle${i}.png`);
-    }
-
-    // Load animation frames for coin
-    for (let i = 1; i <= 6; i++) {
-      this.load.image(`coin-${i}`, `image/coin/star coin rotate ${i}.webp`);
-    }
-  }
+  // Preload handled by LoadingScene
 
   create(): void {
     // Listen for resize events
@@ -427,10 +366,6 @@ export class GameScene extends Scene {
     });
 
     // IMPORTANT: Make sure background IS ignored by UI camera (only shown in main camera)
-    if (this.testRect) {
-      this.uiCamera?.ignore(this.testRect);
-      console.log(`[OK] Test Rectangle ignored by UI camera`);
-    }
     if (this.gameBackground) {
       this.uiCamera?.ignore(this.gameBackground);
       console.log(`[OK] Background ignored by UI camera - alpha:${this.gameBackground.alpha}, visible:${this.gameBackground.visible}, depth:${this.gameBackground.depth}`);

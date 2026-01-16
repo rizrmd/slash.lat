@@ -78,43 +78,80 @@ export class LoadingScene extends Phaser.Scene {
       this.audioManager.preloadAudio("coin-received", "audio/coin-received.mp3");
     }
 
-    // Load character assets - all from characters/ folder
+    // Load backgrounds
+    this.load.image("bg-orange", "image/bg-orange.png");
+    this.load.image("bg-leaf", "image/bg-leaf.png");
+    this.load.image("bg-fly", "image/bg-fly.png");
+    this.load.image("game-bg", "image/game-bg.png");
+
+    // Load character assets
     this.load.image("orange-bot", "image/characters/orange-bot.webp");
     this.load.image("leaf-bot", "image/characters/leaf-bot.webp");
-
-    // Load leaf-bot-720 as a sprite sheet (5 frames vertically, 3600px total height = 720px per frame)
-    // Actual dimensions: 754px wide x 720px tall per frame
     this.load.spritesheet("leaf-bot-720", "image/characters/leaf-bot-720.webp", {
-      frameWidth: 754,   // Actual frame width
-      frameHeight: 720,  // 3600px / 5 frames = 720px per frame
+      frameWidth: 754,
+      frameHeight: 720,
       startFrame: 0,
       endFrame: 4
     });
-
     this.load.image("fly-bot", "image/characters/fly-bot.webp");
     this.load.image("fly-bot-attack", "image/characters/fly-bot-attack.webp");
-
-    // Load additional characters from characters/ folder
     this.load.image("bee-bot", "image/characters/Bee.webp");
     this.load.image("lion-bot", "image/characters/Lion.webp");
     this.load.image("robot-bot", "image/characters/Robot.webp");
     this.load.image("snake-bot", "image/characters/snake-bot-1764.webp");
 
-    // Load logo for main menu and loading screen
+    // Load logo
     this.load.image("logo", "image/characters/logo.webp");
 
-    // Load coin animation frames
+    // Load animation frames
     for (let i = 1; i <= 6; i++) {
       this.load.image(`coin-${i}`, `image/coin/star coin rotate ${i}.webp`);
     }
-
-    // Load electric-leftover animation frames
     for (let i = 6; i <= 10; i++) {
-      this.load.image(
-        `electric-leftover-${i}`,
-        `anim/electric-leftover/Explosion_blue_circle${i}.png`
-      );
+      this.load.image(`electric-leftover-${i}`, `anim/electric-leftover/Explosion_blue_circle${i}.png`);
     }
+
+    // Generate procedural textures
+    this.generateProceduralTextures();
+  }
+
+  generateProceduralTextures(): void {
+    // Spark texture
+    const graphics = this.make.graphics({ x: 0, y: 0 });
+    graphics.fillStyle(0xffffff, 1);
+    graphics.fillCircle(2, 2, 2);
+    graphics.generateTexture("spark", 4, 4);
+    graphics.clear();
+
+    // Fire particle
+    graphics.fillStyle(0xffaa00, 1);
+    graphics.fillCircle(2, 2, 2);
+    graphics.generateTexture("fire-particle", 4, 4);
+    graphics.clear();
+
+    // Electric particle
+    graphics.fillStyle(0x00ffff, 1);
+    graphics.fillRect(3, 0, 2, 8);
+    graphics.fillRect(0, 3, 8, 2);
+    graphics.fillTriangle(4, 0, 2, 3, 6, 3);
+    graphics.fillTriangle(4, 8, 2, 5, 6, 5);
+    graphics.fillTriangle(0, 4, 3, 2, 3, 6);
+    graphics.fillTriangle(8, 4, 5, 2, 5, 6);
+    graphics.generateTexture("electric-particle", 8, 8);
+    graphics.clear();
+
+    // Smoke particle
+    graphics.fillStyle(0x333333, 1);
+    graphics.fillCircle(6, 6, 6);
+    graphics.generateTexture("smoke-particle", 12, 12);
+    graphics.clear();
+
+    // Blood particle
+    graphics.fillStyle(0x8b0000, 1);
+    graphics.fillCircle(4, 4, 4);
+    graphics.generateTexture("blood-particle", 8, 8);
+
+    graphics.destroy();
   }
 
   checkFontAndTransition(): void {
