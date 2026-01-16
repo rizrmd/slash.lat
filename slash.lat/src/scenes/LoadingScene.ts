@@ -3,15 +3,14 @@ import { GameConfig } from "../types";
 import { AudioManager } from "../managers/AudioManager";
 
 export class LoadingScene extends Phaser.Scene {
-  private gameConfig: GameConfig;
+
   private fontLoaded: boolean = false;
   private audioManager?: AudioManager;
   private loadingProgressBar?: HTMLElement;
   private loadingText?: HTMLElement;
 
-  constructor(gameConfig: GameConfig) {
+  constructor() {
     super({ key: "LoadingScene" });
-    this.gameConfig = gameConfig;
   }
 
   preload(): void {

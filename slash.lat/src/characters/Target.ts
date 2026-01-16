@@ -15,6 +15,7 @@ export abstract class Target {
   protected scene: Phaser.Scene;
   protected container: Phaser.GameObjects.Container;
   protected image: Phaser.GameObjects.Sprite;
+  protected shadow!: Phaser.GameObjects.Graphics; // Add ! to avoid not-assigned error
   public slashDamage: Phaser.GameObjects.Graphics; // Public for camera ignore
   protected imageData?: ImageData;
   protected gameConfig: GameConfig;
@@ -24,6 +25,7 @@ export abstract class Target {
   public hpBarFill?: Phaser.GameObjects.Graphics;
   protected hpBarVisible: boolean = false;
   private particleEmitters: Phaser.GameObjects.Particles.ParticleEmitter[] = [];
+  private initialImageScale: number = 1;
   private breathingTween?: Phaser.Tweens.Tween;
 
   constructor(config: TargetConfig) {
@@ -37,6 +39,12 @@ export abstract class Target {
 
     // Create container
     this.container = this.scene.add.container(config.x, config.y);
+
+    // Create Shadow for Realism (Grounding)
+    this.shadow = this.scene.add.graphics();
+    this.shadow.fillStyle(0x000000, 1);
+    this.shadow.fillEllipse(0, 0, 100, 30); // Base ellipse size
+    this.shadow.setAlpha(0.3);
 
     // Add target image (as sprite to support animations)
     this.image = this.scene.add.sprite(0, 0, this.getAssetKey());
@@ -59,7 +67,16 @@ export abstract class Target {
     const scaleY = targetHeight / imageHeight;
     const finalScale = Math.min(scaleX, scaleY);
 
+    this.initialImageScale = finalScale; // Store for breathing reference
     this.image.setScale(finalScale);
+
+    // Initial shadow positioning (below image)
+    const shadowY = (imageHeight * finalScale) / 2 + 10;
+    this.shadow.y = shadowY;
+    // Shadow width relative to character width
+    const shadowScale = (imageWidth * finalScale) / 100;
+    this.shadow.scaleX = shadowScale * 1.2;
+    this.shadow.scaleY = shadowScale * 0.4;
 
     // Create slash damage overlay (initially hidden)
     this.slashDamage = this.scene.add.graphics();
@@ -70,8 +87,8 @@ export abstract class Target {
     this.hpBarFill.setVisible(false);
     this.updateHpBar();
 
-    // Add all to container
-    this.container.add([this.image, this.slashDamage, this.hpBarFill]);
+    // Add all to container (Shadow FIRST so it's behind)
+    this.container.add([this.shadow, this.image, this.slashDamage, this.hpBarFill]);
 
     // Extract image data for pixel-perfect collision
     this.extractImageData();
@@ -173,8 +190,9 @@ export abstract class Target {
         }
       },
       onComplete: () => {
-        // Start ONLY movement pattern - DISABLE breathing for performance
-        this.startCircularWandering();
+        // Start breathing effect AND movement pattern
+        this.startBreathingEffect();
+        this.startComplexMovement();
 
         // Notify subclasses when fully visible
         this.onFullyVisible();
@@ -189,294 +207,401 @@ export abstract class Target {
    */
   private updateScaleForDepth(): void {
     const { canvasHeight } = this.gameConfig;
-    const normalizedY = this.container.y / canvasHeight;
-    const minScale = 0.7;
-    const maxScale = 1.3;
+    const normalizedY = Math.min(1, Math.max(0, this.container.y / canvasHeight)); // Clamp between 0 and 1
+    const minScale = 0.5; // EXAGGERATED: Smaller when far
+    const maxScale = 1.8; // EXAGGERATED: Bigger when close
     const depthScale = minScale + (normalizedY * (maxScale - minScale));
     this.container.setScale(depthScale);
+
+    // Update Shadow Realism (Grounding)
+    if (this.shadow) {
+      // Darker when closer (0.1 to 0.5 opacity)
+      const shadowAlpha = 0.1 + (normalizedY * 0.4);
+      this.shadow.setAlpha(shadowAlpha);
+    }
   }
 
   /**
    * Start UNPREDICTABLE random movement - NO DELAY!
    */
-  private startCircularWandering(): void {
-    // Pilih pola movement secara RANDOM
-    const patterns = ['random', 'circular', 'figure8', 'chaos'];
+  /**
+   * Start complex movement sequence utilizing various patterns
+   * zigzag, horizontal, vertical, diagonal, semi-circle, full-circle
+   */
+  private startComplexMovement(): void {
+    this.moveNext();
+  }
+
+  private moveNext(): void {
+    // If we've been destroyed, stop
+    if (!this.scene || !this.container) return;
+
+    const patterns = ['zigzag', 'horizontal', 'vertical', 'diagonal', 'semicircle', 'fullcircle', 'random', 'lunge', 'lunge']; // Added 'lunge' twice to increase probability
     const pattern = patterns[Math.floor(Math.random() * patterns.length)];
 
-    // console.log(`🎲 RANDOM movement pattern: ${pattern}`);
+    // Ensure we stay within bounds
+    const {
+      dpr,
+      gameAreaOffsetX,
+      gameAreaOffsetY,
+      gridMarginLeft,
+      gridMarginTop,
+      gridWidth,
+      gridHeight
+    } = this.gameConfig;
+
+    // --- DYNAMIC BOUNDS CALCULATION ---
+    // We use different scales for different edges to maximize screen usage while preventing clipping.
+
+    // 1. TOP EDGE (Further away = smaller)
+    // Scale is ~0.5 at top, so we use 0.8 to be safe but allow them to go HIGH (Zoom Out look)
+    const topScale = 0.8;
+    const paddingTop = (this.image.frame.height * this.initialImageScale * topScale) / 2 + (20 * dpr);
+
+    // 2. SIDE EDGES (Average)
+    // We use a compromise scale so they can reach corners but mostly stay safe
+    const sideScale = 2.0;
+    const paddingSide = (this.image.frame.width * this.initialImageScale * sideScale) / 2 + (50 * dpr);
+
+    // 3. BOTTOM EDGE (Combined Breathing + Depth Max)
+    // Must be HUGE because 3D effect -> 1.8x depth * 1.5x breath = 2.7x
+    const bottomScale = 3.0;
+    // Extra 100px buffer for bottom UI/Taskbar area
+    const paddingBottom = (this.image.frame.height * this.initialImageScale * bottomScale) / 2 + (100 * dpr);
+
+    // Calculate Grid start positions (Top-Left of the playable grid)
+    const gridStartX = gameAreaOffsetX + gridMarginLeft;
+    const gridStartY = gameAreaOffsetY + gridMarginTop;
+
+    const centerX = gridStartX + (gridWidth / 2);
+    const centerY = gridStartY + (gridHeight / 2);
+
+    let minX = gridStartX + paddingSide;
+    let maxX = gridStartX + gridWidth - paddingSide;
+
+    // Top bound is much higher now -> triggers "Zoom Out"
+    let minY = gridStartY + paddingTop;
+    // Bottom bound is protected
+    let maxY = gridStartY + gridHeight - paddingBottom;
+
+    // Safety check: If padding is too big for the screen, lock to center
+    if (minX > maxX) {
+      minX = centerX;
+      maxX = centerX;
+    }
+    if (minY > maxY) {
+      minY = centerY;
+      maxY = centerY;
+    }
+
+    const safeBounds = {
+      minX,
+      maxX,
+      minY,
+      maxY,
+      width: maxX - minX,
+      height: maxY - minY
+    };
+
+    // Common movement params
+    const speedMultiplier = 1.0; // Adjustable speed factor
+    const baseDuration = (300 + Math.random() * 400) / speedMultiplier; // 0.3 - 0.7s per segment
 
     switch (pattern) {
+      case 'zigzag':
+        this.moveZigzag(safeBounds, baseDuration);
+        break;
+      case 'horizontal':
+        this.moveLinear(safeBounds, 'horizontal', baseDuration);
+        break;
+      case 'vertical':
+        this.moveLinear(safeBounds, 'vertical', baseDuration);
+        break;
+      case 'diagonal':
+        this.moveLinear(safeBounds, 'diagonal', baseDuration);
+        break;
+      case 'semicircle':
+        this.moveArc(safeBounds, 'semi', baseDuration);
+        break;
+      case 'fullcircle':
+        this.moveArc(safeBounds, 'full', baseDuration);
+        break;
       case 'random':
-        this.startRandomWaypoints();
+        this.moveRandom(safeBounds, baseDuration);
         break;
-      case 'circular':
-        this.startCircularMotion();
+      case 'lunge':
+        this.moveLunge(safeBounds, baseDuration);
         break;
-    case 'figure8':
-      this.startFigure8Motion();
-      break;
-    case 'chaos':
-      this.startChaosMotion();
-      break;
+      default:
+        this.moveRandom(safeBounds, baseDuration);
+        break;
     }
   }
 
+  // --- ATOMIC MOVEMENT PATTERNS ---
+
   /**
-   * Pattern 1: Random waypoints - SAFE BOUNDARIES for laptop!
+   * Pattern: Attack Lunge
+   * Simulates an attack: Anticipate (pull back), Lunge (fast forward/down), Recover
    */
-  private startRandomWaypoints(): void {
-    const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, isPortrait } = this.gameConfig;
+  private moveLunge(bounds: any, baseDuration: number): void {
+    // 1. Anticipate: Pull back slightly (up/away) and wait
+    const currentX = this.container.x;
+    const currentY = this.container.y;
 
-    // EXTRA SAFE padding - laptop butuh boundary yang SANGAT aman!
-    const padding = isPortrait ? 80 * dpr : 150 * dpr;
-    const minX = gameAreaOffsetX + gridMarginLeft + padding;
-    const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
-    const minY = gameAreaOffsetY + gridMarginTop + padding;
-    const maxY = gameAreaOffsetY + gridMarginTop + gameHeight - padding;
+    // Calculate lunge target (bottom-ish area, towards player)
+    // Target is somewhere in the bottom half of the safe bounds
+    const lungeX = bounds.minX + Math.random() * bounds.width;
+    const lungeY = bounds.minY + (bounds.height * 0.6) + (Math.random() * bounds.height * 0.4);
 
-    const moveToRandom = () => {
-      const targetX = minX + Math.random() * (maxX - minX);
-      const targetY = minY + Math.random() * (maxY - minY);
+    // Anticipation point (slightly opposite to lunge direction)
+    const antX = currentX - (lungeX - currentX) * 0.1;
+    const antY = currentY - (lungeY - currentY) * 0.1;
 
-      // Slower movement for better performance
-      const duration = 500 + Math.random() * 700;
+    // Sequence: Anticipate -> Lunge -> Pause -> Recover
+    // Sequence: Anticipate -> Lunge -> Pause -> Recover
+    // We use nested tweens for maximum compatibility
+    this.scene.tweens.add({
+      targets: this.container,
+      x: antX,
+      y: antY,
+      duration: baseDuration * 1.5, // Slow windup
+      ease: 'Power1',
+      onUpdate: () => this.updateScaleForDepth(),
+      onComplete: () => {
+        // LUNGE!
+        this.scene.tweens.add({
+          targets: this.container,
+          x: lungeX,
+          y: lungeY,
+          duration: baseDuration * 0.6, // FAST attack!
+          ease: 'Back.easeOut', // Overshoot slightly for impact
+          onUpdate: () => this.updateScaleForDepth(),
+          onComplete: () => {
+            // Short Pause (Impact)
+            this.scene.time.delayedCall(200, () => {
+              this.moveNext();
+            });
+          }
+        });
+      }
+    });
+  }
 
-      // Random easing untuk variasi
-      const easings = ['Sine.easeInOut', 'Quad.easeInOut'];
-      const randomEase = easings[Math.floor(Math.random() * easings.length)];
+  /**
+   * Pattern 1: Zigzag
+   * Moves to 3-4 points in a zigzag pattern
+   */
+  private moveZigzag(bounds: any, baseDuration: number): void {
+    const points = 3 + Math.floor(Math.random() * 2); // 3 or 4 points
+    let currentStep = 0;
+
+    const executeStep = () => {
+      if (currentStep >= points) {
+        this.moveNext();
+        return;
+      }
+
+      // Zigzag logic: alternate vertical direction while moving horizontally, or vice versa
+      // For simplicity: just pick random points that are somewhat far apart but safe
+      const targetX = Math.max(bounds.minX, Math.min(bounds.maxX, Math.random() * (bounds.maxX - bounds.minX) + bounds.minX));
+      const targetY = Math.max(bounds.minY, Math.min(bounds.maxY, Math.random() * (bounds.maxY - bounds.minY) + bounds.minY));
 
       this.scene.tweens.add({
         targets: this.container,
         x: targetX,
         y: targetY,
-        duration: duration,
-        ease: randomEase,
-        onComplete: () => moveToRandom(),
+        duration: baseDuration * 0.8, // Faster segments for zigzag
+        ease: 'Sine.easeInOut',
+        onUpdate: () => this.updateScaleForDepth(),
+        onComplete: () => {
+          currentStep++;
+          executeStep();
+        }
       });
     };
 
-    moveToRandom();
+    executeStep();
   }
 
   /**
-   * Pattern 2: Circular motion - ADAPTIVE SAFE CIRCLES!
-   * Smartphone: radius dan padding lebih besar
+   * Pattern 2, 3, 4: Linear (Horizontal, Vertical, Diagonal)
+   * Moves a significant distance in one direction
    */
-  private startCircularMotion(): void {
-    const { gridWidth, gridHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, dpr, isPortrait } = this.gameConfig;
-    const centerX = this.container.x;
-    const centerY = this.container.y;
-    const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
+  private moveLinear(bounds: any, type: 'horizontal' | 'vertical' | 'diagonal', duration: number): void {
+    let targetX = this.container.x;
+    let targetY = this.container.y;
+    const minMove = 100 * this.gameConfig.dpr; // Minimum movement distance
 
-    // EXTRA SAFE radius - jauh lebih kecil untuk laptop!
-    const minRadius = isPortrait ? cellSize * 0.5 : cellSize * 0.25;
-    const maxRadius = isPortrait ? cellSize * 1.0 : cellSize * 0.5;
-    const radius = minRadius + Math.random() * (maxRadius - minRadius);
+    if (type === 'horizontal') {
+      // Pick random X, keep Y (mostly)
+      targetX = Math.max(bounds.minX, Math.min(bounds.maxX, Math.random() * (bounds.maxX - bounds.minX) + bounds.minX));
+      // Add slight Y variation for natural look
+      targetY += (Math.random() - 0.5) * 50;
+    } else if (type === 'vertical') {
+      // Pick random Y, keep X (mostly)
+      targetY = Math.max(bounds.minY, Math.min(bounds.maxY, Math.random() * (bounds.maxY - bounds.minY) + bounds.minY));
+      targetX += (Math.random() - 0.5) * 50;
+    } else {
+      // Diagonal: Pick random X and Y
+      targetX = Math.max(bounds.minX, Math.min(bounds.maxX, Math.random() * (bounds.maxX - bounds.minX) + bounds.minX));
+      targetY = Math.max(bounds.minY, Math.min(bounds.maxY, Math.random() * (bounds.maxY - bounds.minY) + bounds.minY));
+    }
 
-    // EXTRA SAFE padding - laptop butuh boundary yang SANGAT aman!
-    const safePadding = isPortrait ? 100 * dpr : 180 * dpr;
-    const minSafeX = gameAreaOffsetX + gridMarginLeft + safePadding;
-    const maxSafeX = gameAreaOffsetX + gridMarginLeft + gameWidth - safePadding;
-    const minSafeY = gameAreaOffsetY + gridMarginTop + safePadding;
-    const maxSafeY = gameAreaOffsetY + gridMarginTop + gameHeight - safePadding;
+    // Clamp Y
+    targetY = Math.max(bounds.minY, Math.min(bounds.maxY, targetY));
+    targetX = Math.max(bounds.minX, Math.min(bounds.maxX, targetX));
 
-    // Pastikan circle tidak akan keluar dari safe area
-    const clampedCenterX = Math.max(minSafeX + radius, Math.min(maxSafeX - radius, centerX));
-    const clampedCenterY = Math.max(minSafeY + radius, Math.min(maxSafeY - radius, centerY));
+    this.scene.tweens.add({
+      targets: this.container,
+      x: targetX,
+      y: targetY,
+      duration: duration * 1.5, // Longer duration for long slides
+      ease: 'Quad.easeInOut',
+      onUpdate: () => this.updateScaleForDepth(),
+      onComplete: () => this.moveNext()
+    });
+  }
 
-    const clockwise = Math.random() > 0.5;
-    const arcPoints = 8 + Math.floor(Math.random() * 8); // 8-15 points (fewer = better performance!)
+  /**
+   * Pattern 5, 6: Arcs (Semi-circle, Full-circle)
+   * Uses waypoints to approximate circular motion
+   */
+  private moveArc(bounds: any, type: 'semi' | 'full', duration: number): void {
+    // Determine radius and center based on available space
+    // We want the circle to be near current position
+    const currentX = this.container.x;
+    const currentY = this.container.y;
 
-    const waypoints: Array<{ x: number; y: number }> = [];
-    for (let i = 0; i < arcPoints; i++) {
-      const angle = (Math.PI * 2 * i) / arcPoints;
+    // Random radius (between 10% and 30% of screen width)
+    const minR = bounds.width * 0.1;
+    const maxR = bounds.width * 0.25;
+    const radius = minR + Math.random() * (maxR - minR);
+
+    // Determines offset direction (so we don't always circle around the same center relative to us)
+    const angleOffset = Math.random() * Math.PI * 2;
+    // Calculate potential center
+    const centerX = currentX + Math.cos(angleOffset) * radius;
+    const centerY = currentY + Math.sin(angleOffset) * radius;
+
+    // Clamp center to keep circle mostly in bounds
+    // (It's OK if it clips slightly, safe area handles major padding)
+    const clampedCenterX = Math.max(bounds.minX + radius, Math.min(bounds.maxX - radius, centerX));
+    const clampedCenterY = Math.max(bounds.minY + radius, Math.min(bounds.maxY - radius, centerY));
+
+    // Calculate start angle relative to clamped center
+    const startAngle = Math.atan2(currentY - clampedCenterY, currentX - clampedCenterX);
+
+    const isClockwise = Math.random() > 0.5;
+    const direction = isClockwise ? 1 : -1;
+
+    // Full circle = 2PI, Semi = PI
+    const arcLength = type === 'full' ? Math.PI * 2 : Math.PI * (0.5 + Math.random() * 0.5); // 0.5PI - 1.0PI for 'semi'
+
+    const segments = type === 'full' ? 16 : 8;
+    const waypoints: { x: number, y: number }[] = [];
+
+    for (let i = 1; i <= segments; i++) {
+      const progress = i / segments;
+      const angle = startAngle + (arcLength * progress * direction);
       waypoints.push({
         x: clampedCenterX + Math.cos(angle) * radius,
-        y: clampedCenterY + Math.sin(angle) * radius,
+        y: clampedCenterY + Math.sin(angle) * radius
       });
     }
 
-    let currentWaypoint = 0;
-    const moveToNext = () => {
-      const target = waypoints[clockwise ? currentWaypoint : (waypoints.length - 1 - currentWaypoint)];
+    let currentPoint = 0;
+    const stepDuration = (duration * (type === 'full' ? 4 : 2)) / segments; // Adjust total time based on length
 
-      // Slower for performance
-      const duration = 600 + Math.random() * 400;
-
-      this.scene.tweens.add({
-        targets: this.container,
-        x: target.x,
-        y: target.y,
-        duration: duration,
-        ease: 'Sine.easeInOut',
-        onComplete: () => {
-          currentWaypoint = (currentWaypoint + 1) % waypoints.length;
-          moveToNext();
-        },
-      });
-    };
-
-    moveToNext();
-  }
-
-  /**
-   * Pattern 3: Figure-8 (infinity symbol) - SAFE FIGURE-8!
-   * Gerakan fig-8 dengan radius KECIL dan aman
-   * ADAPTIVE - Smartphone dapat radius dan ruang lebih besar!
-   */
-  private startFigure8Motion(): void {
-    const { gridWidth, gridHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, dpr, isPortrait } = this.gameConfig;
-    const centerX = this.container.x;
-    const centerY = this.container.y;
-    const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
-
-    // EXTRA SAFE radius - jauh lebih kecil untuk laptop!
-    const minRadius = isPortrait ? cellSize * 0.5 : cellSize * 0.2;
-    const maxRadius = isPortrait ? cellSize * 0.8 : cellSize * 0.4;
-    const radiusX = minRadius + Math.random() * (maxRadius - minRadius); // Horizontal
-    const radiusY = (minRadius * 0.5) + Math.random() * ((maxRadius * 0.5) - (minRadius * 0.5)); // Vertical (50% of horizontal)
-
-    // EXTRA SAFE padding - laptop butuh boundary yang SANGAT aman!
-    const safePadding = isPortrait ? 100 * dpr : 180 * dpr;
-    const minSafeX = gameAreaOffsetX + gridMarginLeft + safePadding;
-    const maxSafeX = gameAreaOffsetX + gridMarginLeft + gridWidth - safePadding;
-    const minSafeY = gameAreaOffsetY + gridMarginTop + safePadding;
-    const maxSafeY = gameAreaOffsetY + gridMarginTop + gameHeight - safePadding;
-
-    // Pastikan figure-8 tidak akan keluar dari safe area
-    const clampedCenterX = Math.max(minSafeX + radiusX, Math.min(maxSafeX - radiusX, centerX));
-    const clampedCenterY = Math.max(minSafeY + radiusY, Math.min(maxSafeY - radiusY, centerY));
-
-    const waypoints: Array<{ x: number; y: number }> = [];
-    const points = 12; // Fewer points for better performance
-
-    for (let i = 0; i < points; i++) {
-      const t = (Math.PI * 2 * i) / points;
-      // Lissajous curve untuk figure-8
-      waypoints.push({
-        x: clampedCenterX + Math.sin(t) * radiusX,
-        y: clampedCenterY + Math.sin(t * 2) * radiusY,
-      });
-    }
-
-    let currentWaypoint = 0;
-    const moveToNext = () => {
-      const target = waypoints[currentWaypoint];
-
-      // Slower for performance
-      const duration = 500 + Math.random() * 300;
-
-      this.scene.tweens.add({
-        targets: this.container,
-        x: target.x,
-        y: target.y,
-        duration: duration,
-        ease: 'Sine.easeInOut',
-        onComplete: () => {
-          currentWaypoint = (currentWaypoint + 1) % waypoints.length;
-          moveToNext();
-        },
-      });
-    };
-
-    moveToNext();
-  }
-
-  /**
-   * Pattern 4: CHAOS - EXTRA SAFE for laptop!
-   */
-  private startChaosMotion(): void {
-    const { gameWidth, gameHeight, dpr, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, isPortrait } = this.gameConfig;
-
-    // EXTRA SAFE padding - laptop butuh boundary yang SANGAT aman!
-    const padding = isPortrait ? 90 * dpr : 160 * dpr;
-    const minX = gameAreaOffsetX + gridMarginLeft + padding;
-    const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
-    const minY = gameAreaOffsetY + gridMarginTop + padding;
-    const maxY = gameAreaOffsetY + gridMarginTop + gameHeight - padding;
-
-    const moveChaos = () => {
-      // Random setiap kali: pilih pola berbeda!
-      const chaosType = Math.random();
-
-      if (chaosType < 0.35) {
-        // Random jump - teleport ke posisi acak dalam EXTRA SAFE area!
-        this.scene.tweens.add({
-          targets: this.container,
-          x: minX + Math.random() * (maxX - minX),
-          y: minY + Math.random() * (maxY - minY),
-          duration: 400 + Math.random() * 400, // Slower for performance
-          ease: 'Quad.easeInOut',
-          onComplete: () => moveChaos(),
-        });
-      } else if (chaosType < 0.65) {
-        // Small circle/arc movement dengan radius KECIL
-        const gridWidth = gameWidth;
-        const gridHeight = gameHeight;
-        const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
-        const radius = cellSize * (0.15 + Math.random() * 0.2); // 15-35% dari cell size (KECIL!)
-        const angle = Math.random() * Math.PI * 2;
-
-        // Clamp hasil movement dalam safe area!
-        const newX = this.container.x + Math.cos(angle) * radius;
-        const newY = this.container.y + Math.sin(angle) * radius;
-        const clampedX = Math.max(minX, Math.min(maxX, newX));
-        const clampedY = Math.max(minY, Math.min(maxY, newY));
-
-        this.scene.tweens.add({
-          targets: this.container,
-          x: clampedX,
-          y: clampedY,
-          duration: 400 + Math.random() * 300, // Slower for performance
-          ease: 'Sine.easeInOut',
-          onComplete: () => moveChaos(),
-        });
-      } else {
-        // Diagonal dash dengan jarak KECIL!
-        const gridWidth = gameWidth;
-        const gridHeight = gameHeight;
-        const cellSize = Math.min(gridWidth / 5, gridHeight / 3);
-        const dashDistance = cellSize * (0.2 + Math.random() * 0.3); // 20-50% dari cell size (KECIL!)
-        const angle = Math.random() * Math.PI * 2;
-
-        // Clamp hasil dash dalam safe area!
-        const newX = this.container.x + Math.cos(angle) * dashDistance;
-        const newY = this.container.y + Math.sin(angle) * dashDistance;
-        const clampedX = Math.max(minX, Math.min(maxX, newX));
-        const clampedY = Math.max(minY, Math.min(maxY, newY));
-
-        this.scene.tweens.add({
-          targets: this.container,
-          x: clampedX,
-          y: clampedY,
-          duration: 500 + Math.random() * 400, // Slower for performance
-          ease: 'Quad.easeOut',
-          onComplete: () => moveChaos(),
-        });
+    const moveStep = () => {
+      if (currentPoint >= waypoints.length) {
+        this.moveNext();
+        return;
       }
+
+      const p = waypoints[currentPoint];
+      this.scene.tweens.add({
+        targets: this.container,
+        x: p.x,
+        y: p.y,
+        duration: stepDuration, // Linear for smooth curve approximation
+        ease: 'Linear',
+        onUpdate: () => this.updateScaleForDepth(),
+        onComplete: () => {
+          currentPoint++;
+          moveStep();
+        }
+      });
     };
 
-    moveChaos();
+    moveStep();
   }
 
   /**
-   * Start breathing effect - SUBTLE zoom in/out
-   * Optimized for performance - much smaller scale changes
+   * Fallback / Simple Random Move
+   */
+  private moveRandom(bounds: any, duration: number): void {
+    const targetX = Math.max(bounds.minX, Math.min(bounds.maxX, Math.random() * (bounds.maxX - bounds.minX) + bounds.minX));
+    const targetY = Math.max(bounds.minY, Math.min(bounds.maxY, Math.random() * (bounds.maxY - bounds.minY) + bounds.minY));
+
+    this.scene.tweens.add({
+      targets: this.container,
+      x: targetX,
+      y: targetY,
+      duration: duration,
+      ease: 'Sine.easeInOut',
+      onUpdate: () => this.updateScaleForDepth(),
+      onComplete: () => this.moveNext()
+    });
+  }
+
+  /**
+   * Start breathing effect - SLOWER and MORE ORGANIC!
+   * Simulates real-life breathing rhythm (Inhale -> Pause -> Exhale -> Pause)
+   * UPDATED: Now targets THIS.IMAGE scale relative to BASE scale, independent of container depth scale!
    */
   private startBreathingEffect(): void {
-    // Get CURRENT scale from container
-    const currentScale = this.container.scale;
-    const targetScale = currentScale * 1.08; // Only 8% increase - SUBTLE for better performance
+    // Determine scale range based on INITIAL image scale
+    const baseScale = this.initialImageScale;
+    const maxBreathScale = baseScale * 1.5; // EXAGGERATED: 50% inhale
 
-    this.breathingTween = this.scene.tweens.add({
-      targets: this.container,
-      scale: targetScale,
-      duration: 2000 + Math.random() * 1000, // 2-3 seconds (slower = smoother)
-      yoyo: true,
-      repeat: -1,
-      ease: "Sine.easeInOut"
-    });
+    const breatheCycle = () => {
+      // Stop if destroyed
+      if (!this.scene || !this.image || !this.image.active) return;
+
+      // Random duration for more organic feel (2.5s - 4.5s cycle)
+      const inhaleDuration = 1500 + Math.random() * 1000;
+      const exhaleDuration = 1500 + Math.random() * 1000;
+      const holdDuration = 100 + Math.random() * 200;
+
+      // INHALE
+      this.breathingTween = this.scene.tweens.add({
+        targets: this.image, // Target the SPRITE, not the container
+        scale: maxBreathScale,
+        duration: inhaleDuration,
+        ease: "Sine.easeInOut",
+        onComplete: () => {
+          // HOLD BREATH (tiny pause)
+          this.scene.time.delayedCall(holdDuration, () => {
+            // EXHALE
+            if (!this.scene || !this.image) return;
+
+            this.breathingTween = this.scene.tweens.add({
+              targets: this.image,
+              scale: baseScale,
+              duration: exhaleDuration,
+              ease: "Sine.easeInOut",
+              onComplete: () => {
+                // Loop after short pause
+                this.scene.time.delayedCall(holdDuration, breatheCycle);
+              }
+            });
+          });
+        }
+      });
+    };
+
+    breatheCycle();
   }
 
   protected onFullyVisible(): void {
@@ -1041,7 +1166,7 @@ export abstract class Target {
     this.scene.tweens.killTweensOf(this.container);
 
     // Start new random movement
-    this.startCircularWandering();
+    this.startComplexMovement();
   }
 
   destroy(): void {

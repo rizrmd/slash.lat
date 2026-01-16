@@ -21,6 +21,13 @@ export class WeaponManager {
   }
 
   createWeaponIndicator(): void {
+    if (this.weaponIndicator) {
+      this.weaponIndicator.destroy();
+    }
+    if (this.weaponText) {
+      this.weaponText.destroy();
+    }
+
     const { canvasWidth, gameHeight, dpr } = this.gameConfig;
     const padding = 20 * dpr;
     const bottomY = gameHeight * dpr - padding;

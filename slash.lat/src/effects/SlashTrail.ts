@@ -1,10 +1,10 @@
-import Phaser from 'phaser';
-import { TrailPoint, GameConfig } from '../types';
+import Phaser from "phaser";
+import { TrailPoint, GameConfig } from "../types";
 
 export class SlashTrail {
     private scene: Phaser.Scene;
-    public graphics: Phaser.GameObjects.Graphics; // Public for camera ignore
-    public renderTexture: Phaser.GameObjects.RenderTexture; // Public for camera ignore
+    public graphics: Phaser.GameObjects.Graphics;
+    public renderTexture!: Phaser.GameObjects.RenderTexture;
     private trailPoints: TrailPoint[] = [];
     private gameConfig: GameConfig;
     private isDrawing: boolean = false;
@@ -13,10 +13,11 @@ export class SlashTrail {
     private cachedSplinePoints: Array<{ x: number, y: number, progress: number }> | null = null;
     private lastTrailPointsLength: number = 0;
 
-    private readonly MAX_SLASH_DURATION = 150; // ms - quick knife slash
-    private readonly MAX_TRAIL_POINTS = 25; // Short trail for knife slash
-    private readonly TRAIL_FADE_TIME = 80; // ms - how long trail stays before fading
-    private readonly TRAIL_FADE_DURATION = 120; // ms - how long fade takes
+    private readonly MAX_SLASH_DURATION = 350; // Increased duration for longer strokes
+    private readonly MAX_TRAIL_POINTS = 60; // Increased points capacity
+    private readonly TRAIL_FADE_TIME = 100;
+    private readonly TRAIL_FADE_DURATION = 150;
+    private readonly MIN_POINT_DISTANCE = 4; // Reduced distance for smoother input capture
 
     constructor(scene: Phaser.Scene, gameConfig: GameConfig) {
         this.scene = scene;
@@ -24,15 +25,11 @@ export class SlashTrail {
 
         // Create single graphics object for the slash effect
         this.graphics = scene.add.graphics();
+        this.graphics.setDepth(100); // High depth to be on top
 
-        // Create render texture to hold the graphics (covers full canvas)
-        this.renderTexture = scene.add.renderTexture(
-            0,
-            0,
-            gameConfig.canvasWidth * gameConfig.dpr,
-            gameConfig.gameHeight * gameConfig.dpr
-        );
-        this.renderTexture.setDepth(1);
+        // Dummy object to satisfy types/public interface if accessed elsewhere
+        this.renderTexture = scene.add.renderTexture(0, 0, 1, 1);
+        this.renderTexture.setVisible(false);
     }
 
     startDrawing(x: number, y: number): void {
@@ -42,16 +39,26 @@ export class SlashTrail {
         this.trailPoints = [];
         this.cachedSplinePoints = null;
         this.lastTrailPointsLength = 0;
-        this.addTrailPoint(x, y);
+        this.addTrailPoint(x, y, true);
     }
 
-    addTrailPoint(x: number, y: number): boolean {
+    addTrailPoint(x: number, y: number, force: boolean = false): boolean {
         const now = this.scene.time.now;
 
         // Check if exceeded maximum slash duration
         if (now - this.drawingStartTime >= this.MAX_SLASH_DURATION) {
             this.endDrawing();
             return false;
+        }
+
+        // Optimize: Check distance from last point
+        if (!force && this.trailPoints.length > 0) {
+            const last = this.trailPoints[this.trailPoints.length - 1];
+            const distSq = (x - last.x) * (x - last.x) + (y - last.y) * (y - last.y);
+            const minProps = this.MIN_POINT_DISTANCE * this.gameConfig.dpr;
+            if (distSq < minProps * minProps) {
+                return true; // Use existing point (skip adding close points)
+            }
         }
 
         // Add new point
@@ -67,8 +74,9 @@ export class SlashTrail {
 
         // Check if reached maximum trail length
         if (this.trailPoints.length >= this.MAX_TRAIL_POINTS) {
-            this.endDrawing();
-            return false;
+            // Drop oldest point to keep trailing
+            this.trailPoints.shift();
+            this.cachedSplinePoints = null;
         }
 
         return true;
@@ -96,11 +104,7 @@ export class SlashTrail {
     }
 
     private drawTrail(): void {
-        // Clear graphics and render texture
         this.graphics.clear();
-        this.renderTexture.clear();
-
-        if (this.trailPoints.length < 2) return;
 
         const now = this.scene.time.now;
         const dpr = this.gameConfig.dpr;
@@ -146,11 +150,8 @@ export class SlashTrail {
             sharedEndTipY = lastPoint.y + Math.sin(endAngle) * endTriangleLength;
         }
 
-        // Draw single trail layer with blur/glow applied via postFX
+        // Draw directly to graphics, no render texture overhead
         this.drawTrailLayer(5 * dpr, 1.0, 0xffffff, sharedEndTipX, sharedEndTipY, splinePoints, trailFadeAlpha);
-
-        // Render graphics to the render texture to apply postFX effects
-        this.renderTexture.draw(this.graphics);
     }
 
     private drawTrailLayer(
@@ -162,8 +163,6 @@ export class SlashTrail {
         splinePoints: Array<{ x: number, y: number, progress: number }>,
         trailFadeAlpha: number
     ): void {
-        if (splinePoints.length < 2) return;
-
         // Draw trail as filled ribbon along spline with smooth gradient
         for (let i = 0; i < splinePoints.length - 1; i++) {
             const point = splinePoints[i];
@@ -184,16 +183,19 @@ export class SlashTrail {
 
             if (alpha1 <= 0 && alpha2 <= 0) continue;
 
+            // Tapered width: gets thinner towards the start (oldest points)
+            const width1 = lineWidth * eased1;
+            const width2 = lineWidth * eased2;
+
             // Calculate perpendicular points for ribbon edges
-            const halfWidth = lineWidth / 2;
-            const p1x = point.x + Math.cos(perpAngle) * halfWidth;
-            const p1y = point.y + Math.sin(perpAngle) * halfWidth;
-            const p2x = point.x - Math.cos(perpAngle) * halfWidth;
-            const p2y = point.y - Math.sin(perpAngle) * halfWidth;
-            const p3x = nextPoint.x + Math.cos(perpAngle) * halfWidth;
-            const p3y = nextPoint.y + Math.sin(perpAngle) * halfWidth;
-            const p4x = nextPoint.x - Math.cos(perpAngle) * halfWidth;
-            const p4y = nextPoint.y - Math.sin(perpAngle) * halfWidth;
+            const p1x = point.x + Math.cos(perpAngle) * (width1 / 2);
+            const p1y = point.y + Math.sin(perpAngle) * (width1 / 2);
+            const p2x = point.x - Math.cos(perpAngle) * (width1 / 2);
+            const p2y = point.y - Math.sin(perpAngle) * (width1 / 2);
+            const p3x = nextPoint.x + Math.cos(perpAngle) * (width2 / 2);
+            const p3y = nextPoint.y + Math.sin(perpAngle) * (width2 / 2);
+            const p4x = nextPoint.x - Math.cos(perpAngle) * (width2 / 2);
+            const p4y = nextPoint.y - Math.sin(perpAngle) * (width2 / 2);
 
             // Use average alpha for smooth appearance
             const avgAlpha = (alpha1 + alpha2) / 2;
@@ -211,7 +213,7 @@ export class SlashTrail {
 
             const endEased = lastSplinePoint.progress * lastSplinePoint.progress;
             const endAlpha = alphaMultiplier * endEased * trailFadeAlpha;
-            const endTriangleWidth = lineWidth;
+            const endTriangleWidth = lineWidth * endEased;
 
             // Calculate angle for perpendicular base
             const endDx = lastSplinePoint.x - secondLastSplinePoint.x;
@@ -263,7 +265,7 @@ export class SlashTrail {
         if (this.trailPoints.length < 2) return [];
 
         const splinePoints: Array<{ x: number, y: number, progress: number }> = [];
-        const segmentsPerPoint = 5; // Balance between smoothness and performance
+        const segmentsPerPoint = 10; // Increased to 10 for 'totally smooth' curves
 
         for (let i = 0; i < this.trailPoints.length - 1; i++) {
             // Get 4 points for Catmull-Rom spline
@@ -276,6 +278,7 @@ export class SlashTrail {
             for (let s = 0; s < segmentsPerPoint; s++) {
                 const t = s / segmentsPerPoint;
                 const point = this.getCatmullRomPoint(p0, p1, p2, p3, t);
+                // Linear progress for alpha/width tapering
                 const progress = (i + t) / (this.trailPoints.length - 1);
                 splinePoints.push({ x: point.x, y: point.y, progress });
             }

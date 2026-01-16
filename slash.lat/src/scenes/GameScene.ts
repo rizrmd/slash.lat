@@ -15,7 +15,9 @@ import { GameConfig } from "../types";
 
 export class GameScene extends Scene {
   private orientationWarning?: Phaser.GameObjects.Text;
-  private gameConfig: GameConfig;
+  // Initialize with a placeholder to avoid TS errors
+  private gameConfig: GameConfig = {} as GameConfig;
+
   private targets: Target[] = []; // Store all active targets
   private hitTargetsThisSlash: Set<Target> = new Set(); // Track targets hit in current slash
   private slashTrail?: SlashTrail;
@@ -62,9 +64,8 @@ export class GameScene extends Scene {
   private isPlayerActive: boolean = false; // Is player currently active?
   private activityCheckEvent?: Phaser.Time.TimerEvent;
 
-  constructor(gameConfig: GameConfig) {
+  constructor() {
     super({ key: "GameScene" });
-    this.gameConfig = gameConfig;
   }
 
   init(): void {
@@ -73,28 +74,150 @@ export class GameScene extends Scene {
     if (managers && managers.audioManager) {
       this.audioManager = managers.audioManager;
     }
+
+    // Initial config calculation
+    this.updateGameConfig();
+  }
+
+  /**
+   * Recalculate game config based on current screen size
+   */
+  private updateGameConfig(): void {
+    const width = this.scale.width;
+    const height = this.scale.height;
+    const dpr = this.scale.displayScale ? this.scale.displayScale.x : 1;
+
+    // Scale logic
+    const logicalWidth = width;
+    const logicalHeight = height;
+
+    const aspectRatio = logicalWidth / logicalHeight;
+    const isPortrait = aspectRatio < 1;
+    const isLandscape = !isPortrait;
+
+    // SAFE AREA: 95% on mobile (more space), 90% on desktop
+    const SAFE_AREA_PERCENTAGE = isLandscape ? 0.90 : 0.95;
+    const safeAreaWidth = logicalWidth * SAFE_AREA_PERCENTAGE;
+    const safeAreaHeight = logicalHeight * SAFE_AREA_PERCENTAGE;
+    const safeAreaOffsetX = (logicalWidth - safeAreaWidth) / 2;
+    const safeAreaOffsetY = (logicalHeight - safeAreaHeight) / 2;
+
+    // UI HEIGHT
+    const uiHeight = isLandscape ? 80 : 120; // Reduced UI height for better view
+    const gameAreaHeight = safeAreaHeight - uiHeight;
+    const gameAreaWidth = safeAreaWidth;
+    const gameAreaOffsetX = safeAreaOffsetX;
+    const gameAreaOffsetY = safeAreaOffsetY;
+
+    // GRID
+    const gridMarginLeft = isLandscape ? 100 : 20;
+    const gridMarginRight = isLandscape ? 100 : 20;
+    const gridMarginTop = isLandscape ? 60 : 60;
+    const gridMarginBottom = isLandscape ? 60 : 40;
+    const gridWidth = gameAreaWidth - gridMarginLeft - gridMarginRight;
+    const gridHeight = gameAreaHeight - gridMarginTop - gridMarginBottom;
+
+    const newConfig: GameConfig = {
+      baseWidth: logicalWidth,
+      baseHeight: logicalHeight,
+      baseAspectRatio: aspectRatio,
+      isPortrait,
+      isLandscape,
+      dpr,
+      scale: 1,
+      gameWidth: logicalWidth,
+      gameHeight: logicalHeight,
+      canvasWidth: logicalWidth,
+      canvasHeight: logicalHeight,
+      windowAspectRatio: aspectRatio,
+      safeAreaWidth,
+      safeAreaHeight,
+      safeAreaOffsetX,
+      safeAreaOffsetY,
+      gameAreaWidth,
+      gameAreaHeight,
+      gameAreaOffsetX,
+      gameAreaOffsetY,
+      gridWidth,
+      gridHeight,
+      gridMarginLeft,
+      gridMarginRight,
+      gridMarginTop,
+      gridMarginBottom,
+      isMobile: logicalWidth < 700
+    };
+
+    // Update existing object reference to keep managers happy
+    Object.assign(this.gameConfig, newConfig);
+
+    console.log(`Config updated: ${logicalWidth.toFixed(0)}x${logicalHeight.toFixed(0)}`);
+  }
+
+  handleResize(gameSize: Phaser.Structs.Size, baseSize: Phaser.Structs.Size, displaySize: Phaser.Structs.Size, previousWidth: number, previousHeight: number): void {
+    this.updateGameConfig();
+
+    // Update camera bounds to match new world size
+    this.cameras.main.setViewport(0, 0, this.gameConfig.canvasWidth, this.gameConfig.canvasHeight);
+    this.cameras.main.setBounds(0, 0, this.gameConfig.gameWidth, this.gameConfig.gameHeight);
+
+    if (this.uiCamera) {
+      this.uiCamera.setViewport(0, 0, this.gameConfig.canvasWidth, this.gameConfig.canvasHeight);
+    }
+
+    // Centered background container
+    if (this.backgroundContainer) {
+      this.backgroundContainer.setPosition(this.gameConfig.canvasWidth / 2, this.gameConfig.canvasHeight / 2);
+    }
+
+    this.updateBackgroundSize();
+
+    // Rebuild UI to fit new layout
+    this.uiLayer?.removeAll(true);
+    this.createUI();
+    if (this.weaponManager) {
+      this.weaponManager.createWeaponIndicator();
+    }
+  }
+
+  updateBackgroundSize(): void {
+    if (!this.gameBackground) return;
+
+    const fullCanvasWidth = this.cameras.main.width;
+    const fullCanvasHeight = this.cameras.main.height;
+
+    const bgWidth = this.gameBackground.width;
+    const bgHeight = this.gameBackground.height;
+
+    // Safety check to prevent division by zero
+    if (bgHeight <= 0 || fullCanvasHeight <= 0) return;
+
+    const bgAspectRatio = bgWidth / bgHeight;
+    const screenAspectRatio = fullCanvasWidth / fullCanvasHeight;
+
+    let displayWidth: number;
+    let displayHeight: number;
+
+    if (bgAspectRatio > screenAspectRatio) {
+      // Background wider than screen - fit to HEIGHT (cover mode)
+      displayHeight = fullCanvasHeight;
+      displayWidth = fullCanvasHeight * bgAspectRatio;
+    } else {
+      // Background taller than screen - fit to WIDTH (cover mode)
+      displayWidth = fullCanvasWidth;
+      displayHeight = fullCanvasWidth / bgAspectRatio;
+    }
+
+    this.gameBackground.setDisplaySize(displayWidth, displayHeight);
   }
 
   preload(): void {
-    const dpr = this.gameConfig.dpr;
-
     // Load game backgrounds for each character
-    console.log("Loading backgrounds...");
     this.load.image("bg-orange", "image/bg-orange.png");
     this.load.image("bg-leaf", "image/bg-leaf.png");
     this.load.image("bg-fly", "image/bg-fly.png");
 
     // Default galaxy background (fallback)
     this.load.image("game-bg", "image/game-bg.png");
-
-    // Log when loading is complete
-    this.load.on("complete", () => {
-      console.log("✓ All backgrounds loaded successfully!");
-      console.log("  - bg-orange:", this.textures.exists("bg-orange"));
-      console.log("  - bg-leaf:", this.textures.exists("bg-leaf"));
-      console.log("  - bg-fly:", this.textures.exists("bg-fly"));
-      console.log("  - game-bg:", this.textures.exists("game-bg"));
-    });
 
     // Create a simple particle texture for sparks
     const graphics = this.make.graphics({ x: 0, y: 0 });
@@ -140,6 +263,9 @@ export class GameScene extends Scene {
   }
 
   create(): void {
+    // Listen for resize events
+    this.scale.on('resize', this.handleResize, this);
+
     const {
       canvasWidth,
       canvasHeight,
@@ -170,32 +296,34 @@ export class GameScene extends Scene {
     this.gameBackground.setOrigin(0.5);
 
     // FULLSCREEN - cover entire visible canvas area (like CSS background-size: cover)
-    // Scale to cover BOTH dimensions, cropping if necessary
-    const bgWidth = this.gameBackground.width;
-    const bgHeight = this.gameBackground.height;
-    const bgAspectRatio = bgWidth / bgHeight;
-    const screenAspectRatio = fullCanvasWidth / fullCanvasHeight;
+    this.updateBackgroundSize();
 
-    let displayWidth: number;
-    let displayHeight: number;
+    this.backgroundContainer.add(this.gameBackground);
 
-    if (bgAspectRatio > screenAspectRatio) {
-      // Background wider than screen - fit to HEIGHT (cover mode)
-      displayHeight = fullCanvasHeight;
-      displayWidth = fullCanvasHeight * bgAspectRatio;
-    } else {
-      // Background taller than screen - fit to WIDTH (cover mode)
-      displayWidth = fullCanvasWidth;
-      displayHeight = fullCanvasWidth / bgAspectRatio;
-    }
+    // Add background container to SCENE (not gameLayer) so it stays behind everything
+    this.add.existing(this.backgroundContainer);
 
-    this.gameBackground.setDisplaySize(displayWidth, displayHeight);
+    // Floating particles for background ambiance
+    this.backgroundParticles = this.add.particles(0, 0, "spark", {
+      x: { min: -1000, max: 1000 },
+      y: { min: -1000, max: 1000 },
+      lifespan: { min: 4000, max: 8000 },
+      speed: { min: 10, max: 30 },
+      scale: { start: 0.2, end: 0 },
+      alpha: { start: 0.3, end: 0 },
+      blendMode: 'ADD',
+      quantity: 1,
+      frequency: 200,
+    });
+    this.backgroundParticles.setDepth(-9999);
+    this.backgroundContainer.add(this.backgroundParticles);
+
     this.gameBackground.setAlpha(0.7);
 
     // Add background image to container
     this.backgroundContainer.add(this.gameBackground);
 
-    console.log(`✓ Fullscreen background: ${displayWidth.toFixed(0)}x${displayHeight.toFixed(0)} (screen: ${fullCanvasWidth.toFixed(0)}x${fullCanvasHeight.toFixed(0)})`);
+    console.log(`✓ Fullscreen background initialized (screen: ${fullCanvasWidth.toFixed(0)}x${fullCanvasHeight.toFixed(0)})`);
 
     this.currentBackgroundKey = "game-bg";
 
@@ -290,9 +418,7 @@ export class GameScene extends Scene {
       coinBasedConfig,
       {
         onSpawnEnemy: (characterClass, position) => {
-          // DISABLED: Don't change background per character
-          // Player controls background via coin icon click
-          // this.changeBackground(characterClass);
+          this.changeBackground(characterClass);
           this.spawnEnemy(characterClass, position);
         },
         gridToGame: (col, row, w, h) => this.gridToGame(col, row, w, h),
@@ -394,8 +520,31 @@ export class GameScene extends Scene {
       // Accumulate slash length
       this.currentSlashLength += distance;
 
-      // Check points along the line (every 2 pixels for MORE SENSITIVE collision)
-      const stepSize = 2;
+      // OPTIMIZATION: Cache bounds for all visible targets once per move event
+      const targetCache = visibleTargets.map(t => ({
+        target: t,
+        bounds: t.getContainer().getBounds()
+      }));
+
+      // Filter targets that are even close to the line segment (Broad Phase)
+      const segmentMinX = Math.min(prevPoint.x, gamePos.x) - 50;
+      const segmentMaxX = Math.max(prevPoint.x, gamePos.x) + 50;
+      const segmentMinY = Math.min(prevPoint.y, gamePos.y) - 50;
+      const segmentMaxY = Math.max(prevPoint.y, gamePos.y) + 50;
+
+      const nearbyTargets = targetCache.filter(({ bounds }) => {
+        return !(bounds.right < segmentMinX ||
+          bounds.left > segmentMaxX ||
+          bounds.bottom < segmentMinY ||
+          bounds.top > segmentMaxY);
+      });
+
+      if (nearbyTargets.length === 0) return;
+
+      // Check points along the line (step size based on DPR for consistent accuracy)
+      const dpr = this.gameConfig.dpr;
+      // Optimize: Increase step size slightly to reduce iterations (4px is usually enough for responsiveness)
+      const stepSize = 4 * dpr;
       const steps = Math.ceil(distance / stepSize);
 
       for (let i = 0; i <= steps; i++) {
@@ -403,14 +552,12 @@ export class GameScene extends Scene {
         const checkX = prevPoint.x + dx * t;
         const checkY = prevPoint.y + dy * t;
 
-        // Check each target for collision
-        for (const target of visibleTargets) {
-          const containerBounds = target.getContainer().getBounds();
-
-          if (containerBounds.contains(checkX, checkY)) {
+        // Check each nearby target for collision
+        for (const { target, bounds } of nearbyTargets) {
+          if (bounds.contains(checkX, checkY)) {
             // Convert to container-relative coordinates
-            const relativeX = checkX - containerBounds.centerX;
-            const relativeY = checkY - containerBounds.centerY;
+            const relativeX = checkX - bounds.centerX;
+            const relativeY = checkY - bounds.centerY;
 
             // Check if pixel is opaque
             if (target.isPixelOpaque(relativeX, relativeY)) {
@@ -424,10 +571,9 @@ export class GameScene extends Scene {
               }
 
               // Calculate entry/exit points once for both damage and sparks
-              const relativeStartX = checkX - containerBounds.centerX;
-              const relativeStartY = checkY - containerBounds.centerY;
+              const relativeStartX = checkX - bounds.centerX;
+              const relativeStartY = checkY - bounds.centerY;
 
-              const dpr = this.gameConfig.dpr;
               const length = Math.sqrt(dx * dx + dy * dy);
               const normalizedX = length > 0 ? dx / length : 0;
               const normalizedY = length > 0 ? dy / length : 0;
@@ -448,8 +594,8 @@ export class GameScene extends Scene {
                 const testX = relativeStartX - normalizedX * dist;
                 const testY = relativeStartY - normalizedY * dist;
                 if (target.isPixelOpaque(testX, testY)) {
-                  worldStartX = testX + containerBounds.centerX;
-                  worldStartY = testY + containerBounds.centerY;
+                  worldStartX = testX + bounds.centerX;
+                  worldStartY = testY + bounds.centerY;
                 } else {
                   break;
                 }
@@ -464,8 +610,8 @@ export class GameScene extends Scene {
                 const testX = relativeStartX + normalizedX * dist;
                 const testY = relativeStartY + normalizedY * dist;
                 if (target.isPixelOpaque(testX, testY)) {
-                  worldEndX = testX + containerBounds.centerX;
-                  worldEndY = testY + containerBounds.centerY;
+                  worldEndX = testX + bounds.centerX;
+                  worldEndY = testY + bounds.centerY;
                 } else {
                   break;
                 }
@@ -933,6 +1079,26 @@ export class GameScene extends Scene {
   update(): void {
     // Update slash trail
     this.slashTrail?.update();
+
+    // BACKGROUND PARALLAX (Real-time depth reaction)
+    if (this.backgroundContainer && this.gameConfig) {
+      const { canvasWidth, canvasHeight } = this.gameConfig;
+      const pointer = this.input.activePointer;
+
+      // Calculate offset from center (normalized -1 to 1)
+      const normX = (pointer.x / canvasWidth) - 0.5;
+      const normY = (pointer.y / canvasHeight) - 0.5;
+
+      // Parallax intensity (Top layer moves opposite to mouse)
+      const intensity = 30 * this.gameConfig.dpr;
+
+      const targetX = (canvasWidth / 2) - (normX * intensity); // Move opposite
+      const targetY = (canvasHeight / 2) - (normY * intensity);
+
+      // Smooth lerp for weight/fluidity
+      this.backgroundContainer.x += (targetX - this.backgroundContainer.x) * 0.05;
+      this.backgroundContainer.y += (targetY - this.backgroundContainer.y) * 0.05;
+    }
   }
 
   createUI(): void {
@@ -1079,11 +1245,78 @@ export class GameScene extends Scene {
    * - Floating particles (stars/dust)
    * - Parallax effect on pointer move
    */
+  /**
+   * Setup animated background effects
+   * - Breathing effect (subtle zoom in/out)
+   * - Floating particles (stars/dust)
+   * - Parallax effect on pointer move
+   * - Vignette for dramatic lighting
+   */
   setupAnimatedBackground(): void {
-    // DISABLED - Background animations cause lag
-    // No breathing effect, no particles, no parallax
-    // Static background only for best performance
-    console.log("⚠️ Background animations DISABLED for performance");
+    const { canvasWidth, canvasHeight } = this.gameConfig;
+
+    // 1. VIGNETTE OVERLAY (Cinema feel)
+    // Create a radial gradient texture for vignette
+    if (!this.textures.exists('vignette')) {
+      const vignetteGraphics = this.make.graphics({ x: 0, y: 0 });
+      vignetteGraphics.fillStyle(0x000000, 1);
+      vignetteGraphics.fillRect(0, 0, canvasWidth, canvasHeight);
+      vignetteGraphics.generateTexture('vignette', canvasWidth, canvasHeight);
+      vignetteGraphics.destroy();
+    }
+
+    // Add vignette sprite
+    const vignette = this.add.sprite(canvasWidth / 2, canvasHeight / 2, 'vignette');
+    vignette.setScrollFactor(0); // Static on screen
+    vignette.setAlpha(0.6); // Darken corners
+    vignette.setDepth(-5000); // Above background, below game
+    vignette.setBlendMode(Phaser.BlendModes.MULTIPLY); // Darken mode
+
+    // Add to background container (or separate static container if we want it fixed)
+    // We want it fixed, so add to SCENE directly but low depth? 
+    // Actually uiCamera ignores gameLayer, so we can put it in gameLayer or just add to scene.
+    // Let's add to backgroundContainer so it moves/scales with background for 3D feel? 
+    // No, vignette should be static on SCREEN (like a camera lens).
+    // But backgroundContainer is behind everything. 
+    // Let's add it to the scene and set depth -9000 (above BG container which is -10000)
+    // AND ensure it ignores UI camera.
+    this.add.existing(vignette);
+    this.ignoreFromUICamera(vignette);
+
+    // Make vignette "pulse" slightly with HP (Heartbeat effect)
+    this.tweens.add({
+      targets: vignette,
+      alpha: 0.7,
+      duration: 2000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    // 2. BACKGROUND BREATHING (Living world)
+    // Subtle zoom in/out of the background container
+    if (this.backgroundContainer) {
+      this.tweens.add({
+        targets: this.backgroundContainer,
+        scale: { from: 1.0, to: 1.05 },
+        duration: 8000,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+
+      // Also rotate slightly for disorientation/dynamic feel
+      this.tweens.add({
+        targets: this.backgroundContainer,
+        angle: { from: -1, to: 1 },
+        duration: 12000,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+    }
+
+    console.log("✨ Background animations ENABLED: Vignette, Breathing, Rotation");
   }
 
   updateHPBar(): void {
@@ -1296,8 +1529,8 @@ export class GameScene extends Scene {
             {
               startTime: 0,
               enemies: [{ characterClass: OrangeBot, weight: 1 }],
-              maxConcurrent: 3, // Increased from 2
-              spawnInterval: 2500, // Faster spawn (was 3000ms)
+              maxConcurrent: 5, // Increased for "unlimited" feel
+              spawnInterval: 1200, // Fast spawn
             },
           ],
         },
@@ -1316,8 +1549,8 @@ export class GameScene extends Scene {
                 { characterClass: OrangeBot, weight: 6 },
                 { characterClass: LeafBot, weight: 4 },
               ],
-              maxConcurrent: 4, // Increased from 3
-              spawnInterval: 2000, // Faster spawn (was 2500ms)
+              maxConcurrent: 6,
+              spawnInterval: 1000,
             },
           ],
         },
@@ -1337,8 +1570,8 @@ export class GameScene extends Scene {
                 { characterClass: LeafBot, weight: 4 },
                 { characterClass: FlyBot, weight: 2 },
               ],
-              maxConcurrent: 5, // Increased from 4
-              spawnInterval: 1800, // Faster spawn (was 2000ms)
+              maxConcurrent: 7,
+              spawnInterval: 900,
             },
           ],
         },
@@ -1353,16 +1586,17 @@ export class GameScene extends Scene {
           {
             startTime: 0,
             enemies: [
-              { characterClass: OrangeBot, weight: 2 },
-              { characterClass: LeafBot, weight: 5 },
-              { characterClass: FlyBot, weight: 3 },
+              { characterClass: OrangeBot, weight: 3 },
+              { characterClass: LeafBot, weight: 3 },
+              { characterClass: FlyBot, weight: 4 },
             ],
-            maxConcurrent: 6, // Increased from 5 - MORE CHAOS!
-            spawnInterval: 1500, // Very fast spawn (was 1800ms)
+            maxConcurrent: 8, // Very crowded!
+            spawnInterval: 700, // Insane speed
           },
         ],
       },
     };
+
   }
 
   /**

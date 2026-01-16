@@ -8,14 +8,16 @@ export class OrangeBot extends Target {
     super(config);
 
     // NOW we can use 'this' to randomize size
-    // Random size for variety: 1x1 (40%), 2x1 (40%), or 3x2 (20%)
+    // Random size for variety: 1x1, 2x2, 3x2, or 3x3
     const random = Math.random();
-    if (random < 0.4) {
-      this.size = { w: 1, h: 1 }; // 40% chance - small
+    if (random < 0.3) {
+      this.size = { w: 1, h: 1 }; // 30% chance - 1x1
+    } else if (random < 0.6) {
+      this.size = { w: 2, h: 2 }; // 30% chance - 2x2
     } else if (random < 0.8) {
-      this.size = { w: 2, h: 1 }; // 40% chance - medium
+      this.size = { w: 3, h: 2 }; // 20% chance - 3x2
     } else {
-      this.size = { w: 3, h: 2 }; // 20% chance - large
+      this.size = { w: 3, h: 3 }; // 20% chance - 3x3
     }
   }
 
