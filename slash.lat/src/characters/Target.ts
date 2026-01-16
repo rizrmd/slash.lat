@@ -247,27 +247,25 @@ export abstract class Target {
       gridMarginLeft,
       gridMarginTop,
       gridWidth,
-      gridHeight
+      gridHeight,
+      isPortrait
     } = this.gameConfig;
 
     // --- DYNAMIC BOUNDS CALCULATION ---
-    // We use different scales for different edges to maximize screen usage while preventing clipping.
+    // Use SMALLER padding on portrait/mobile
+    const isMobile = isPortrait || gridWidth < 600;
 
-    // 1. TOP EDGE (Further away = smaller)
-    // Scale is ~0.5 at top, so we use 0.8 to be safe but allow them to go HIGH (Zoom Out look)
-    const topScale = 0.8;
-    const paddingTop = (this.image.frame.height * this.initialImageScale * topScale) / 2 + (20 * dpr);
+    // 1. TOP EDGE
+    const topScale = isMobile ? 0.3 : 0.8; // Smaller scale for mobile
+    const paddingTop = (this.image.frame.height * this.initialImageScale * topScale) / 2 + (isMobile ? 5 : 20) * dpr;
 
-    // 2. SIDE EDGES (Average)
-    // We use a compromise scale so they can reach corners but mostly stay safe
-    const sideScale = 2.0;
-    const paddingSide = (this.image.frame.width * this.initialImageScale * sideScale) / 2 + (50 * dpr);
+    // 2. SIDE EDGES
+    const sideScale = isMobile ? 0.5 : 2.0;
+    const paddingSide = (this.image.frame.width * this.initialImageScale * sideScale) / 2 + (isMobile ? 10 : 50) * dpr;
 
-    // 3. BOTTOM EDGE (Combined Breathing + Depth Max)
-    // Must be HUGE because 3D effect -> 1.8x depth * 1.5x breath = 2.7x
-    const bottomScale = 3.0;
-    // Extra 100px buffer for bottom UI/Taskbar area
-    const paddingBottom = (this.image.frame.height * this.initialImageScale * bottomScale) / 2 + (100 * dpr);
+    // 3. BOTTOM EDGE
+    const bottomScale = isMobile ? 0.8 : 3.0;
+    const paddingBottom = (this.image.frame.height * this.initialImageScale * bottomScale) / 2 + (isMobile ? 15 : 100) * dpr;
 
     // Calculate Grid start positions (Top-Left of the playable grid)
     const gridStartX = gameAreaOffsetX + gridMarginLeft;
@@ -1175,6 +1173,9 @@ export abstract class Target {
     this.slashDamage.destroy();
     this.hpBarFill?.clear();
     this.hpBarFill?.destroy();
+    // Destroy shadow to prevent ghost shadows
+    this.shadow?.clear();
+    this.shadow?.destroy();
     this.container.destroy();
   }
 

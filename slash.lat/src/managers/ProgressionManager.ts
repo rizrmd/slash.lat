@@ -368,34 +368,27 @@ export class ProgressionManager {
   }
 
   private getRandomGridPosition(): { x: number; y: number } {
-    const { gameWidth, gameHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, isPortrait } = this.gameConfig;
+    const { gameWidth, gameHeight, gameAreaOffsetX, gameAreaOffsetY, gridMarginLeft, gridMarginTop, gridWidth, gridHeight, isPortrait } = this.gameConfig;
 
-    // For smartphone (portrait), spread characters across FULL VISIBLE area
+    // For smartphone (portrait), spread characters across FULL GRID area
     // For laptop (landscape), use centered grid positioning
     if (isPortrait) {
-      // Smartphone: Use FULL safe area with nice spread
-      const padding = 150; // Generous padding for smartphone
-      const minX = gameAreaOffsetX + gridMarginLeft + padding;
-      const maxX = gameAreaOffsetX + gridMarginLeft + gameWidth - padding;
-      const minY = gameAreaOffsetY + gridMarginTop + padding;
-      const maxY = gameAreaOffsetY + gridMarginTop + gameHeight - padding;
+      // Smartphone: Use FULL canvas width/height with minimal padding for absolute maximum spread
+      const { canvasWidth, canvasHeight } = this.gameConfig;
+      const padding = 20;
 
       return {
-        x: minX + Math.random() * (maxX - minX),
-        y: minY + Math.random() * (maxY - minY)
+        x: padding + Math.random() * (canvasWidth - padding * 2),
+        y: padding + Math.random() * (canvasHeight - 300) // Keep away from bottom UI
       };
     } else {
-      // Laptop: Use grid system (columns 2-4, rows 2-3)
-      const column = Math.floor(Math.random() * 3) + 2; // 2-4 (middle columns)
-      const row = Math.floor(Math.random() * 2) + 2; // 2-3 (avoid top row)
+      // Laptop: Wider grid system for better spread
+      // Use column 1-5 and row 1-3 with random variation
+      const column = 1 + Math.random() * 4; // 1.0 to 5.0
+      const row = 1 + Math.random() * 2;    // 1.0 to 3.0
 
-      const { gridWidth, gridHeight } = this.gameConfig;
-
-      const centerColumn = column;
-      const x = gameAreaOffsetX + gridMarginLeft + ((centerColumn - 0.5) / 5) * gridWidth;
-
-      const centerRow = row;
-      const y = gameAreaOffsetY + gridMarginTop + ((centerRow - 0.5) / 3) * gridHeight;
+      const x = gameAreaOffsetX + gridMarginLeft + ((column - 0.5) / 5) * gridWidth;
+      const y = gameAreaOffsetY + gridMarginTop + ((row - 0.5) / 3) * gridHeight;
 
       return { x, y };
     }

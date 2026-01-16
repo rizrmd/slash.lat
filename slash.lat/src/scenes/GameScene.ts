@@ -10,6 +10,7 @@ import { WeaponManager } from "../managers/WeaponManager";
 import {
   ProgressionManager,
   type CharacterClass,
+  type ProgressionConfig,
 } from "../managers/ProgressionManager";
 import { GameConfig } from "../types";
 
@@ -37,6 +38,7 @@ export class GameScene extends Scene {
   private playerLevel: number = 1; // Player level based on total coins
   private unlockedBackgrounds: string[] = ['bg-orange']; // Start with default background
   private selectedBackground: string = 'bg-orange';
+  private testRect?: Phaser.GameObjects.Rectangle; // Test rectangle for mobile debugging
 
   // Background unlock levels
   private backgroundLevels = [
@@ -207,7 +209,8 @@ export class GameScene extends Scene {
       displayHeight = fullCanvasWidth / bgAspectRatio;
     }
 
-    this.gameBackground.setDisplaySize(displayWidth, displayHeight);
+    // Safety: scale up slightly (5%) to ensure no black edges / rounding gaps
+    this.gameBackground.setDisplaySize(displayWidth * 1.05, displayHeight * 1.05);
   }
 
   preload(): void {
@@ -260,6 +263,16 @@ export class GameScene extends Scene {
     bloodGraphics.fillCircle(4, 4, 4);
     bloodGraphics.generateTexture("blood-particle", 8, 8);
     bloodGraphics.destroy();
+
+    // Load animation frames for electric-leftover
+    for (let i = 6; i <= 10; i++) {
+      this.load.image(`electric-leftover-${i}`, `anim/electric-leftover/Explosion_blue_circle${i}.png`);
+    }
+
+    // Load animation frames for coin
+    for (let i = 1; i <= 6; i++) {
+      this.load.image(`coin-${i}`, `image/coin/star coin rotate ${i}.webp`);
+    }
   }
 
   create(): void {
@@ -287,45 +300,88 @@ export class GameScene extends Scene {
     const fullCanvasWidth = this.cameras.main.width;
     const fullCanvasHeight = this.cameras.main.height;
 
-    // Create background container for parallax effects
-    this.backgroundContainer = this.add.container(fullCanvasWidth / 2, fullCanvasHeight / 2);
-    this.backgroundContainer.setDepth(-10000); // Render behind everything
+    const { isMobile } = this.gameConfig;
 
-    // Use saved background selection
-    this.gameBackground = this.add.image(0, 0, this.selectedBackground);
-    this.gameBackground.setOrigin(0.5);
+    if (isMobile) {
+      // MOBILE: Put background at depth -100 to ensure it's behind everything
+      this.gameBackground = this.add.image(fullCanvasWidth / 2, fullCanvasHeight / 2, this.selectedBackground);
+      this.gameBackground.setOrigin(0.5);
+      this.gameBackground.setVisible(true);
+      this.gameBackground.setActive(true);
 
-    // FULLSCREEN - cover entire visible canvas area (like CSS background-size: cover)
-    this.updateBackgroundSize();
+      // Calculate size to cover screen
+      const bgWidth = this.gameBackground.width;
+      const bgHeight = this.gameBackground.height;
+      const bgAspectRatio = bgWidth / bgHeight;
+      const screenAspectRatio = fullCanvasWidth / fullCanvasHeight;
 
-    this.backgroundContainer.add(this.gameBackground);
+      let displayWidth: number;
+      let displayHeight: number;
 
-    // Add background container to SCENE (not gameLayer) so it stays behind everything
-    this.add.existing(this.backgroundContainer);
+      if (bgAspectRatio > screenAspectRatio) {
+        displayHeight = fullCanvasHeight;
+        displayWidth = fullCanvasHeight * bgAspectRatio;
+      } else {
+        displayWidth = fullCanvasWidth;
+        displayHeight = fullCanvasWidth / bgAspectRatio;
+      }
 
-    // Floating particles for background ambiance
-    this.backgroundParticles = this.add.particles(0, 0, "spark", {
-      x: { min: -1000, max: 1000 },
-      y: { min: -1000, max: 1000 },
-      lifespan: { min: 4000, max: 8000 },
-      speed: { min: 10, max: 30 },
-      scale: { start: 0.2, end: 0 },
-      alpha: { start: 0.3, end: 0 },
-      blendMode: 'ADD',
-      quantity: 1,
-      frequency: 200,
-    });
-    this.backgroundParticles.setDepth(-9999);
-    this.backgroundContainer.add(this.backgroundParticles);
+      // Safety: scale up slightly (5%) to ensure no black edges / rounding gaps
+      this.gameBackground.setDisplaySize(displayWidth * 1.05, displayHeight * 1.05);
+      this.gameBackground.setDepth(-100);
+      this.gameBackground.setAlpha(1.0);
 
-    this.gameBackground.setAlpha(0.7);
+      // ADD PARTICLES FOR MOBILE FOR "ALIVE" FEEL
+      this.backgroundParticles = this.add.particles(fullCanvasWidth / 2, fullCanvasHeight / 2, "spark", {
+        x: { min: -displayWidth / 2, max: displayWidth / 2 },
+        y: { min: -displayHeight / 2, max: displayHeight / 2 },
+        lifespan: { min: 3000, max: 6000 },
+        speed: { min: 5, max: 15 },
+        scale: { start: 0.15 * dpr, end: 0 },
+        alpha: { start: 0.25, end: 0 },
+        blendMode: 'ADD',
+        quantity: 1,
+        frequency: 300,
+      });
+      this.backgroundParticles.setDepth(-90);
 
-    // Add background image to container
-    this.backgroundContainer.add(this.gameBackground);
+      // Create a dummy container for compatibility
+      this.backgroundContainer = this.add.container(0, 0);
+      this.backgroundContainer.setDepth(-10000);
 
-    console.log(`✓ Fullscreen background initialized (screen: ${fullCanvasWidth.toFixed(0)}x${fullCanvasHeight.toFixed(0)})`);
+      console.log(`✓ MOBILE Background + Particles: ${this.selectedBackground} - depth:-100,-90`);
+    } else {
+      // DESKTOP: Use container for parallax
+      this.backgroundContainer = this.add.container(fullCanvasWidth / 2, fullCanvasHeight / 2);
+      this.backgroundContainer.setDepth(-10000);
 
-    this.currentBackgroundKey = "game-bg";
+      this.gameBackground = this.add.image(0, 0, this.selectedBackground);
+      this.gameBackground.setOrigin(0.5);
+      this.updateBackgroundSize();
+      this.backgroundContainer.add(this.gameBackground);
+      this.add.existing(this.backgroundContainer);
+
+      // Floating particles
+      this.backgroundParticles = this.add.particles(0, 0, "spark", {
+        x: { min: -1000, max: 1000 },
+        y: { min: -1000, max: 1000 },
+        lifespan: { min: 4000, max: 8000 },
+        speed: { min: 10, max: 30 },
+        scale: { start: 0.2 * dpr, end: 0 },
+        alpha: { start: 0.3, end: 0 },
+        blendMode: 'ADD',
+        quantity: 1,
+        frequency: 200,
+      });
+      this.backgroundParticles.setDepth(-9999);
+      this.backgroundContainer.add(this.backgroundParticles);
+
+      this.gameBackground.setAlpha(1.0);
+      console.log(`✓ DESKTOP Background: ${fullCanvasWidth.toFixed(0)}x${fullCanvasHeight.toFixed(0)}`);
+    }
+
+    // Track current background
+    this.currentBackgroundKey = this.selectedBackground;
 
     // Setup animated background effects
     this.setupAnimatedBackground();
@@ -338,7 +394,8 @@ export class GameScene extends Scene {
     // This ensures the camera knows the full extent of the game world
     this.cameras.main.setBounds(0, 0, gameWidth, gameHeight);
     this.cameras.main.setViewport(0, 0, canvasWidth * dpr, canvasHeight * dpr);
-    this.cameras.main.setBackgroundColor("#000000");
+    // NO background color - let the background image show through
+    this.cameras.main.setBackgroundColor("rgba(0,0,0,0)");
 
     // Main camera ignores UI layer (only shows game objects not in UI layer)
     this.cameras.main.ignore(this.uiLayer);
@@ -355,9 +412,17 @@ export class GameScene extends Scene {
     });
 
     // IMPORTANT: Make sure background IS ignored by UI camera (only shown in main camera)
+    if (this.testRect) {
+      this.uiCamera?.ignore(this.testRect);
+      console.log(`✓ Test Rectangle ignored by UI camera`);
+    }
     if (this.gameBackground) {
       this.uiCamera?.ignore(this.gameBackground);
-      console.log("✓ Background ignored by UI camera");
+      console.log(`✓ Background ignored by UI camera - alpha:${this.gameBackground.alpha}, visible:${this.gameBackground.visible}, depth:${this.gameBackground.depth}`);
+    }
+    if (this.backgroundContainer) {
+      this.uiCamera?.ignore(this.backgroundContainer);
+      console.log(`✓ Background container ignored - depth:${this.backgroundContainer.depth}, visible:${this.backgroundContainer.visible}`);
     }
 
     // Initialize audio manager sounds
@@ -417,12 +482,11 @@ export class GameScene extends Scene {
       this,
       coinBasedConfig,
       {
-        onSpawnEnemy: (characterClass, position) => {
+        onSpawnEnemy: (characterClass: CharacterClass, position: { x: number; y: number }) => {
           this.changeBackground(characterClass);
           this.spawnEnemy(characterClass, position);
         },
-        gridToGame: (col, row, w, h) => this.gridToGame(col, row, w, h),
-        onDifficultyChange: (tierIndex) => {
+        onDifficultyChange: (tierIndex: number) => {
           console.log(`⚠️ DIFFICULTY INCREASED! Tier ${tierIndex + 1}/12`);
         },
       },
@@ -793,7 +857,8 @@ export class GameScene extends Scene {
     // Character spans rows [row, row + height - 1]
     // Center row = row + (height - 1) / 2
     const centerRow = row + (height - 1) / 2;
-    const y = safeAreaOffsetY + gridMarginTop + ((centerRow - 0.5) / 3) * gridHeight;
+    // Use gameAreaOffsetY (not safeAreaOffsetY) since that's where the actual game area starts
+    const y = gameAreaOffsetY + gridMarginTop + ((centerRow - 0.5) / 3) * gridHeight;
 
     return { x, y };
   }
@@ -963,6 +1028,11 @@ export class GameScene extends Scene {
     const targetObjects = target.getAllGameObjects();
     targetObjects.forEach((obj) => this.ignoreFromUICamera(obj));
 
+    // MOBILE FIX: Set all character objects depth ABOVE background (depth 10)
+    if (this.gameConfig.isMobile) {
+      targetObjects.forEach((obj) => (obj as any).setDepth?.(20));
+    }
+
     // Add to targets array
     this.targets.push(target);
   }
@@ -1081,8 +1151,10 @@ export class GameScene extends Scene {
     this.slashTrail?.update();
 
     // BACKGROUND PARALLAX (Real-time depth reaction)
-    if (this.backgroundContainer && this.gameConfig) {
-      const { canvasWidth, canvasHeight } = this.gameConfig;
+    const { canvasWidth, canvasHeight, isMobile, dpr } = this.gameConfig;
+    const parallaxTarget = isMobile ? this.gameBackground : this.backgroundContainer;
+
+    if (parallaxTarget && this.gameConfig) {
       const pointer = this.input.activePointer;
 
       // Calculate offset from center (normalized -1 to 1)
@@ -1090,14 +1162,15 @@ export class GameScene extends Scene {
       const normY = (pointer.y / canvasHeight) - 0.5;
 
       // Parallax intensity (Top layer moves opposite to mouse)
-      const intensity = 30 * this.gameConfig.dpr;
+      // Subtle 15px for mobile, 30px for desktop
+      const intensity = (isMobile ? 15 : 30) * dpr;
 
-      const targetX = (canvasWidth / 2) - (normX * intensity); // Move opposite
+      const targetX = (canvasWidth / 2) - (normX * intensity);
       const targetY = (canvasHeight / 2) - (normY * intensity);
 
       // Smooth lerp for weight/fluidity
-      this.backgroundContainer.x += (targetX - this.backgroundContainer.x) * 0.05;
-      this.backgroundContainer.y += (targetY - this.backgroundContainer.y) * 0.05;
+      parallaxTarget.x += (targetX - parallaxTarget.x) * 0.05;
+      parallaxTarget.y += (targetY - parallaxTarget.y) * 0.05;
     }
   }
 
@@ -1243,80 +1316,40 @@ export class GameScene extends Scene {
    * Setup animated background effects
    * - Breathing effect (subtle zoom in/out)
    * - Floating particles (stars/dust)
-   * - Parallax effect on pointer move
-   */
-  /**
-   * Setup animated background effects
-   * - Breathing effect (subtle zoom in/out)
-   * - Floating particles (stars/dust)
-   * - Parallax effect on pointer move
-   * - Vignette for dramatic lighting
    */
   setupAnimatedBackground(): void {
-    const { canvasWidth, canvasHeight } = this.gameConfig;
+    const { isMobile } = this.gameConfig;
 
-    // 1. VIGNETTE OVERLAY (Cinema feel)
-    // Create a radial gradient texture for vignette
-    if (!this.textures.exists('vignette')) {
-      const vignetteGraphics = this.make.graphics({ x: 0, y: 0 });
-      vignetteGraphics.fillStyle(0x000000, 1);
-      vignetteGraphics.fillRect(0, 0, canvasWidth, canvasHeight);
-      vignetteGraphics.generateTexture('vignette', canvasWidth, canvasHeight);
-      vignetteGraphics.destroy();
-    }
+    // 1. VIGNETTE REMOVAL (As requested to keep background bright)
+    // No longer creating vignette to ensure maximum visibility and "premium" feel
 
-    // Add vignette sprite
-    const vignette = this.add.sprite(canvasWidth / 2, canvasHeight / 2, 'vignette');
-    vignette.setScrollFactor(0); // Static on screen
-    vignette.setAlpha(0.6); // Darken corners
-    vignette.setDepth(-5000); // Above background, below game
-    vignette.setBlendMode(Phaser.BlendModes.MULTIPLY); // Darken mode
 
-    // Add to background container (or separate static container if we want it fixed)
-    // We want it fixed, so add to SCENE directly but low depth? 
-    // Actually uiCamera ignores gameLayer, so we can put it in gameLayer or just add to scene.
-    // Let's add to backgroundContainer so it moves/scales with background for 3D feel? 
-    // No, vignette should be static on SCREEN (like a camera lens).
-    // But backgroundContainer is behind everything. 
-    // Let's add it to the scene and set depth -9000 (above BG container which is -10000)
-    // AND ensure it ignores UI camera.
-    this.add.existing(vignette);
-    this.ignoreFromUICamera(vignette);
+    // 2. BACKGROUND ANIMATIONS
+    const animationTarget = isMobile ? this.gameBackground : this.backgroundContainer;
 
-    // Make vignette "pulse" slightly with HP (Heartbeat effect)
-    this.tweens.add({
-      targets: vignette,
-      alpha: 0.7,
-      duration: 2000,
-      yoyo: true,
-      repeat: -1,
-      ease: 'Sine.easeInOut'
-    });
+    if (animationTarget) {
+      const baseScale = isMobile ? (animationTarget as any).scaleX : 1.0;
 
-    // 2. BACKGROUND BREATHING (Living world)
-    // Subtle zoom in/out of the background container
-    if (this.backgroundContainer) {
+      // Smooth Breathing
       this.tweens.add({
-        targets: this.backgroundContainer,
-        scale: { from: 1.0, to: 1.05 },
-        duration: 8000,
+        targets: animationTarget,
+        scale: { from: baseScale, to: baseScale * 1.03 },
+        duration: 10000,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut'
       });
 
-      // Also rotate slightly for disorientation/dynamic feel
+      // Slow Rotation
       this.tweens.add({
-        targets: this.backgroundContainer,
-        angle: { from: -1, to: 1 },
-        duration: 12000,
+        targets: animationTarget,
+        angle: { from: -0.5, to: 0.5 },
+        duration: 15000,
         yoyo: true,
         repeat: -1,
         ease: 'Sine.easeInOut'
       });
     }
-
-    console.log("✨ Background animations ENABLED: Vignette, Breathing, Rotation");
   }
 
   updateHPBar(): void {
@@ -1496,11 +1529,10 @@ export class GameScene extends Scene {
       this,
       newConfig,
       {
-        onSpawnEnemy: (characterClass, position) => {
+        onSpawnEnemy: (characterClass: CharacterClass, position: { x: number; y: number }) => {
           this.spawnEnemy(characterClass, position);
         },
-        gridToGame: (col, row, w, h) => this.gridToGame(col, row, w, h),
-        onDifficultyChange: (tierIndex) => {
+        onDifficultyChange: (tierIndex: number) => {
           console.log(`⚠️ DIFFICULTY INCREASED! Tier ${tierIndex + 1}/12`);
         },
       },
@@ -1517,10 +1549,10 @@ export class GameScene extends Scene {
    * Generate coin-based progression config (respects player level)
    * UNLIMITED continuous spawn - enemies keep coming until player reaches target coins
    */
-  getCoinBasedProgressionConfig() {
+  getCoinBasedProgressionConfig(): ProgressionConfig {
     const level = this.calculatePlayerLevel();
 
-    // Level 1 (0-9,999 coins): Only OrangeBot - Easy warmup
+    // Level 1: Increased intensity
     if (level === 1) {
       return {
         mode: "continuous",
@@ -1529,15 +1561,15 @@ export class GameScene extends Scene {
             {
               startTime: 0,
               enemies: [{ characterClass: OrangeBot, weight: 1 }],
-              maxConcurrent: 5, // Increased for "unlimited" feel
-              spawnInterval: 1200, // Fast spawn
+              maxConcurrent: 8,
+              spawnInterval: 1000,
             },
           ],
         },
       };
     }
 
-    // Level 2 (10,000-24,999 coins): OrangeBot + LeafBot - Medium difficulty
+    // Level 2
     if (level === 2) {
       return {
         mode: "continuous",
@@ -1549,15 +1581,15 @@ export class GameScene extends Scene {
                 { characterClass: OrangeBot, weight: 6 },
                 { characterClass: LeafBot, weight: 4 },
               ],
-              maxConcurrent: 6,
-              spawnInterval: 1000,
+              maxConcurrent: 10,
+              spawnInterval: 800,
             },
           ],
         },
       };
     }
 
-    // Level 3 (25,000-49,999 coins): All enemy types - Hard
+    // Level 3
     if (level === 3) {
       return {
         mode: "continuous",
@@ -1570,15 +1602,15 @@ export class GameScene extends Scene {
                 { characterClass: LeafBot, weight: 4 },
                 { characterClass: FlyBot, weight: 2 },
               ],
-              maxConcurrent: 7,
-              spawnInterval: 900,
+              maxConcurrent: 12,
+              spawnInterval: 600,
             },
           ],
         },
       };
     }
 
-    // Level 4 (50,000+ coins): Master Level - INTENSE!
+    // Level 4: MASTER INTENSE
     return {
       mode: "continuous",
       continuousConfig: {
@@ -1590,13 +1622,12 @@ export class GameScene extends Scene {
               { characterClass: LeafBot, weight: 3 },
               { characterClass: FlyBot, weight: 4 },
             ],
-            maxConcurrent: 8, // Very crowded!
-            spawnInterval: 700, // Insane speed
+            maxConcurrent: 15,
+            spawnInterval: 400,
           },
         ],
       },
     };
-
   }
 
   /**
