@@ -1,7 +1,11 @@
 import { Scene } from "phaser";
-import { FlyBot } from "../characters/FlyBot";
-import { LeafBot } from "../characters/LeafBot";
 import { OrangeBot } from "../characters/OrangeBot";
+import { LeafBot } from "../characters/LeafBot";
+import { FlyBot } from "../characters/FlyBot";
+import { Bee } from "../characters/Bee";
+import { Lion } from "../characters/Lion";
+import { Robot } from "../characters/Robot";
+import { SnakeBot } from "../characters/SnakeBot";
 import { Target } from "../characters/Target";
 import { SlashTrail } from "../effects/SlashTrail";
 import { Sparks } from "../effects/Sparks";
@@ -65,12 +69,17 @@ export class GameScene extends Scene {
   private lastActivityTime: number = Date.now(); // Track player activity
   private isPlayerActive: boolean = false; // Is player currently active?
   private activityCheckEvent?: Phaser.Time.TimerEvent;
+  private isRetry: boolean = false;
 
   constructor() {
     super({ key: "GameScene" });
   }
 
-  init(): void {
+  init(data?: { isRetry?: boolean }): void {
+    if (data && data.isRetry) {
+      this.isRetry = true;
+    }
+
     // Get audio manager from registry (loaded in LoadingScene)
     const managers = this.registry.get("managers");
     if (managers && managers.audioManager) {
@@ -238,6 +247,21 @@ export class GameScene extends Scene {
       dpr,
       scale,
     } = this.gameConfig;
+
+    // Reset coins if this is NOT a retry (e.g. fresh page load or manual refresh)
+    if (!this.isRetry) {
+      console.log("[LOAD] Fresh load detected, resetting session coins...");
+      const saved = localStorage.getItem('slashlat_save');
+      if (saved) {
+        const saveData = JSON.parse(saved);
+        // Reset coins to 0 but keep other progress (levels/backgrounds)
+        saveData.totalCoins = 0;
+        localStorage.setItem('slashlat_save', JSON.stringify(saveData));
+      } else {
+        // Create initial save if non-existent
+        this.saveProgress();
+      }
+    }
 
     // Load saved progress (coins, unlocked backgrounds)
     this.loadProgress();
@@ -1541,7 +1565,7 @@ export class GameScene extends Scene {
   getCoinBasedProgressionConfig(): ProgressionConfig {
     const level = this.calculatePlayerLevel();
 
-    // Level 1: Increased intensity
+    // Level 1: Introduction
     if (level === 1) {
       return {
         mode: "continuous",
@@ -1558,7 +1582,7 @@ export class GameScene extends Scene {
       };
     }
 
-    // Level 2
+    // Level 2: Adding variety
     if (level === 2) {
       return {
         mode: "continuous",
@@ -1567,8 +1591,9 @@ export class GameScene extends Scene {
             {
               startTime: 0,
               enemies: [
-                { characterClass: OrangeBot, weight: 6 },
-                { characterClass: LeafBot, weight: 4 },
+                { characterClass: OrangeBot, weight: 5 },
+                { characterClass: LeafBot, weight: 3 },
+                { characterClass: Bee, weight: 2 },
               ],
               maxConcurrent: 8,
               spawnInterval: 800,
@@ -1578,7 +1603,7 @@ export class GameScene extends Scene {
       };
     }
 
-    // Level 3
+    // Level 3: More challenge
     if (level === 3) {
       return {
         mode: "continuous",
@@ -1587,9 +1612,10 @@ export class GameScene extends Scene {
             {
               startTime: 0,
               enemies: [
-                { characterClass: OrangeBot, weight: 4 },
-                { characterClass: LeafBot, weight: 4 },
+                { characterClass: OrangeBot, weight: 3 },
+                { characterClass: LeafBot, weight: 3 },
                 { characterClass: FlyBot, weight: 2 },
+                { characterClass: Robot, weight: 2 },
               ],
               maxConcurrent: 10,
               spawnInterval: 600,
@@ -1599,7 +1625,7 @@ export class GameScene extends Scene {
       };
     }
 
-    // Level 4: MASTER INTENSE
+    // Level 4: MASTER INTENSE - ALL CHARACTERS
     return {
       mode: "continuous",
       continuousConfig: {
@@ -1607,9 +1633,13 @@ export class GameScene extends Scene {
           {
             startTime: 0,
             enemies: [
-              { characterClass: OrangeBot, weight: 3 },
-              { characterClass: LeafBot, weight: 3 },
-              { characterClass: FlyBot, weight: 4 },
+              { characterClass: OrangeBot, weight: 2 },
+              { characterClass: LeafBot, weight: 2 },
+              { characterClass: FlyBot, weight: 2 },
+              { characterClass: Bee, weight: 1 },
+              { characterClass: Lion, weight: 1 },
+              { characterClass: Robot, weight: 1 },
+              { characterClass: SnakeBot, weight: 1 },
             ],
             maxConcurrent: 15,
             spawnInterval: 400,
@@ -1964,8 +1994,8 @@ export class GameScene extends Scene {
     btnBg.on('pointerover', () => btnBg.setFillStyle(0xdddddd));
     btnBg.on('pointerout', () => btnBg.setFillStyle(0xffffff));
     btnBg.on('pointerdown', () => {
-      // Reload page to restart fresh (easiest way to clear everything)
-      window.location.reload();
+      // Restart current scene and pass retry flag
+      this.scene.restart({ isRetry: true });
     });
 
     // Animation Sequence (Manual chain for Phaser 4 compatibility)

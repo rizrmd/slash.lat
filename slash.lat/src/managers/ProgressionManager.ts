@@ -3,9 +3,13 @@ import type { GameConfig } from "../types";
 import { OrangeBot } from "../characters/OrangeBot";
 import { LeafBot } from "../characters/LeafBot";
 import { FlyBot } from "../characters/FlyBot";
+import { Bee } from "../characters/Bee";
+import { Lion } from "../characters/Lion";
+import { Robot } from "../characters/Robot";
+import { SnakeBot } from "../characters/SnakeBot";
 
 // Character class types
-export type CharacterClass = typeof OrangeBot | typeof LeafBot | typeof FlyBot;
+export type CharacterClass = typeof OrangeBot | typeof LeafBot | typeof FlyBot | typeof Bee | typeof Lion | typeof Robot | typeof SnakeBot;
 
 // ============================================================================
 // CONFIGURATION TYPES
