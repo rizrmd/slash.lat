@@ -245,9 +245,52 @@ export class GameScene extends Scene {
 
   // Preload handled by LoadingScene
 
+  /**
+   * Called when scene shuts down (restart or switch)
+   * CRITICAL for preventing memory leaks and performance degradation
+   */
+  shutdown(): void {
+    console.log('[SCENE] Shutting down GameScene - cleaning up resources...');
+
+    // 1. Stop Managers
+    this.progressionManager?.stop();
+    this.progressionManager = undefined;
+
+    // 2. Clear Arrays & Lists
+    this.targets.forEach(t => t.destroy());
+    this.targets = [];
+
+    // 3. Destroy Effects
+    if (this.slashTrail) {
+      this.slashTrail.destroy();
+      this.slashTrail = undefined as any;
+    }
+    if (this.sparks) {
+      // Sparks cleanup if needed, particles usually auto-destroy with scene
+      this.sparks = undefined as any;
+    }
+
+    // 4. Remove Input Listeners
+    this.input.removeAllListeners();
+    this.events.removeAllListeners();
+
+    // 5. Kill Tweens & Timers
+    this.tweens.killAll();
+    this.time.removeAllEvents();
+
+    // 6. Audio (optional: stop loops if any)
+    // this.audioManager.stopAll(); // Don't stop bgm if it persists across retry
+
+    console.log('[SCENE] Shutdown complete');
+  }
+
   create(): void {
     // Listen for resize events
     this.scale.on('resize', this.handleResize, this);
+
+    // CRITICAL: Setup proper reactor/shutdown cleanup to prevent memory leaks and lag on retry
+    this.events.off('shutdown'); // Clear previous listeners just in case
+    this.events.on('shutdown', this.shutdown, this);
 
     const {
       canvasWidth,
@@ -500,6 +543,41 @@ export class GameScene extends Scene {
     this.isInitializing = true;
     console.log('[INIT] Initialization protection ACTIVE - 3-second grace period');
 
+    // UX: Add Visual Countdown/Ready Message so user doesn't think game is lagging
+    const readyText = this.add.text(
+      this.gameConfig.canvasWidth / 2,
+      this.gameConfig.canvasHeight * 0.4,
+      "GET READY",
+      {
+        fontFamily: "Jura",
+        fontSize: `${48 * this.gameConfig.dpr}px`,
+        color: "#ffffff",
+        fontStyle: "bold",
+        stroke: "#000000",
+        strokeThickness: 6,
+        align: 'center'
+      }
+    ).setOrigin(0.5).setDepth(2000).setAlpha(0);
+
+    // Fade in "GET READY"
+    this.tweens.add({
+      targets: readyText,
+      alpha: 1,
+      scale: { from: 0.5, to: 1.2 },
+      duration: 500,
+      ease: 'Back.out',
+      onComplete: () => {
+        // Pulse animation
+        this.tweens.add({
+          targets: readyText,
+          scale: 1,
+          duration: 500,
+          yoyo: true,
+          repeat: 2
+        });
+      }
+    });
+
     this.progressionManager = new ProgressionManager(
       this,
       coinBasedConfig,
@@ -519,6 +597,23 @@ export class GameScene extends Scene {
     this.time.delayedCall(3000, () => {
       this.isInitializing = false;
       console.log('[INIT] Grace period COMPLETE - enemies can now spawn and attack');
+
+      // Change text to "SURVIVE!"
+      readyText.setText("SURVIVE!");
+      readyText.setColor("#ff0000");
+      readyText.setScale(1.5);
+
+      // Flash and fade out
+      this.tweens.add({
+        targets: readyText,
+        alpha: 0,
+        scale: 3,
+        duration: 800,
+        ease: 'Power2',
+        onComplete: () => {
+          readyText.destroy();
+        }
+      });
 
       if (this.progressionManager) {
         this.progressionManager.start();
@@ -1041,11 +1136,6 @@ export class GameScene extends Scene {
    * Called by ProgressionManager
    */
   spawnEnemy(characterClass: CharacterClass, position: { x: number; y: number }): void {
-    // CRITICAL: Block enemy spawning during initialization
-    if (this.isInitializing) {
-      console.log('[BLOCKED] Enemy spawn blocked during initialization period');
-      return;
-    }
     // Create target at specified position
     const target = new characterClass({
       scene: this,
@@ -1955,6 +2045,11 @@ export class GameScene extends Scene {
     // CRITICAL: Block damage during initialization (first 1 second)
     if (this.isInitializing) {
       console.log('[BLOCKED] Damage blocked during initialization period');
+      return;
+    }
+
+    // CRITICAL: Ignore damage if scene is not active (prevents zombie interactions)
+    if (!this.sys.isActive()) {
       return;
     }
 

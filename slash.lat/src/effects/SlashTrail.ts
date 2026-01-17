@@ -290,4 +290,12 @@ export class SlashTrail {
 
         return splinePoints;
     }
+
+    destroy(): void {
+        this.graphics.clear();
+        this.graphics.destroy();
+        if (this.renderTexture) {
+            this.renderTexture.destroy();
+        }
+    }
 }

@@ -1183,10 +1183,18 @@ export abstract class Target {
     this.startComplexMovement();
   }
 
+  private attackTimer?: Phaser.Time.TimerEvent;
+
   destroy(): void {
     // CRITICAL FIX: Remove event listeners to prevent memory leaks and conflicts on retry
     this.scene.events.off('enemy-damaged', this.onEnemyDamaged, this);
     this.scene.events.off('enemy-killed', this.onEnemyKilled, this);
+
+    // Stop attack timer immediately
+    if (this.attackTimer) {
+      this.attackTimer.remove();
+      this.attackTimer = undefined;
+    }
 
     // Kill all tweens targeting this container
     this.scene.tweens.killTweensOf(this.container);
@@ -1211,7 +1219,7 @@ export abstract class Target {
     // Randomize attack time slightly (2000 - 4000ms)
     const attackDelay = 2000 + Math.random() * 2000;
 
-    this.scene.time.delayedCall(attackDelay, () => {
+    this.attackTimer = this.scene.time.delayedCall(attackDelay, () => {
       if (this.isDead() || !this.scene || !this.container.active) return;
 
       // ATTACK PLAYER!
