@@ -40,6 +40,9 @@ export abstract class Target {
     // Create container
     this.container = this.scene.add.container(config.x, config.y);
 
+    // Store spawn time to differentiate between fading enemies and entrance animations
+    this.container.setData('spawnTime', Date.now());
+
     // Create Shadow for Realism (Grounding)
     this.shadow = this.scene.add.graphics();
     this.shadow.fillStyle(0x000000, 1);
@@ -212,15 +215,15 @@ export abstract class Target {
   private updateScaleForDepth(): void {
     const { canvasHeight } = this.gameConfig;
     const normalizedY = Math.min(1, Math.max(0, this.container.y / canvasHeight)); // Clamp between 0 and 1
-    const minScale = 0.5; // EXAGGERATED: Smaller when far
-    const maxScale = 1.8; // EXAGGERATED: Bigger when close
+    const minScale = 0.85; // Moderate: Slightly smaller when far (was 0.5)
+    const maxScale = 1.15; // Moderate: Slightly bigger when close (was 1.8)
     const depthScale = minScale + (normalizedY * (maxScale - minScale));
     this.container.setScale(depthScale);
 
     // Update Shadow Realism (Grounding)
     if (this.shadow) {
-      // Darker when closer (0.1 to 0.5 opacity)
-      const shadowAlpha = 0.1 + (normalizedY * 0.4);
+      // Darker when closer (0.2 to 0.4 opacity) - more visible
+      const shadowAlpha = 0.2 + (normalizedY * 0.2);
       this.shadow.setAlpha(shadowAlpha);
     }
   }
@@ -774,6 +777,10 @@ export abstract class Target {
     const thornCount = Math.floor(Math.random() * 4) + 1; // Random 1-4 thorns
     const thornLength = 1.5 * dpr; // Very small thorns
 
+    // CRITICAL FIX: Clear previous slash marks to prevent MULTIPLY blend mode accumulation
+    // Without this, each slash makes the character progressively darker (shadow bug)
+    this.slashDamage.clear();
+
     // Set blend mode for realistic integration with target texture
     this.slashDamage.setBlendMode(Phaser.BlendModes.MULTIPLY);
 
@@ -1177,14 +1184,25 @@ export abstract class Target {
   }
 
   destroy(): void {
+    // CRITICAL FIX: Remove event listeners to prevent memory leaks and conflicts on retry
+    this.scene.events.off('enemy-damaged', this.onEnemyDamaged, this);
+    this.scene.events.off('enemy-killed', this.onEnemyKilled, this);
+
+    // Kill all tweens targeting this container
     this.scene.tweens.killTweensOf(this.container);
+    this.scene.tweens.killTweensOf(this.image);
+
+    // Destroy graphics
     this.slashDamage.clear();
     this.slashDamage.destroy();
     this.hpBarFill?.clear();
     this.hpBarFill?.destroy();
+
     // Destroy shadow to prevent ghost shadows
     this.shadow?.clear();
     this.shadow?.destroy();
+
+    // Finally destroy container (this will destroy all children)
     this.container.destroy();
   }
 

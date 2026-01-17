@@ -8,12 +8,55 @@ export class LoadingScene extends Phaser.Scene {
   private audioManager?: AudioManager;
   private loadingProgressBar?: HTMLElement;
   private loadingText?: HTMLElement;
+  private transitionStarted: boolean = false;
+
+  private minLoadingTime: number = 3000; // Minimum 3 seconds
+  private loadingStartTime: number = 0;
 
   constructor() {
     super({ key: "LoadingScene" });
   }
 
+  private unlockAudio?: () => void;
+
+  init(): void {
+    // Global Unlocker (Keep this, it's good for mobile)
+    this.unlockAudio = () => {
+      if (this.sound && this.sound.locked) {
+        this.sound.unlock();
+        const loadingSound = this.audioManager?.getSound("loading-sound");
+        if (loadingSound && !loadingSound.isPlaying) {
+          loadingSound.play({ loop: true, volume: 0.6 });
+        }
+      }
+      // Remove listeners once unlocked
+      if (!this.sound.locked) {
+        this.cleanupListeners();
+      }
+    };
+
+    document.addEventListener('click', this.unlockAudio);
+    document.addEventListener('touchstart', this.unlockAudio);
+    document.addEventListener('keydown', this.unlockAudio);
+
+    // Safety cleanup on shutdown
+    this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => {
+      this.cleanupListeners();
+    });
+  }
+
+  cleanupListeners(): void {
+    if (this.unlockAudio) {
+      document.removeEventListener('click', this.unlockAudio);
+      document.removeEventListener('touchstart', this.unlockAudio);
+      document.removeEventListener('keydown', this.unlockAudio);
+      this.unlockAudio = undefined;
+    }
+  }
+
   preload(): void {
+    this.loadingStartTime = Date.now();
+
     // Initialize AudioManager and store in registry
     this.audioManager = new AudioManager(this);
     this.registry.set('managers', { audioManager: this.audioManager });
@@ -25,10 +68,7 @@ export class LoadingScene extends Phaser.Scene {
     // Load Google Font
     this.loadGoogleFont();
 
-    // Load all game assets
-    this.loadGameAssets();
-
-    // Update progress bar
+    // Setup Listeners
     this.load.on("progress", (value: number) => {
       if (this.loadingProgressBar) {
         this.loadingProgressBar.style.width = `${Math.round(value * 100)}%`;
@@ -42,16 +82,26 @@ export class LoadingScene extends Phaser.Scene {
     });
 
     this.load.on("filecomplete", (key: string) => {
-      if (key === "loading-sound" && this.audioManager) {
-        this.audioManager.addSound("loading-sound");
-        this.audioManager.play("loading-sound", { loop: true, volume: 0.6 });
+      if (key === "loading-sound") {
+        // Attempt to play as soon as loaded
+        if (this.audioManager) {
+          this.audioManager.addSound("loading-sound");
+          this.audioManager.play("loading-sound", { loop: true, volume: 0.6 });
+        }
       }
     });
 
     this.load.on("complete", () => {
-      // Wait for font to load before transitioning
+      console.log("Asset loading complete");
       this.checkFontAndTransition();
     });
+
+    // Start Loading Assets
+    this.loadGameAssets();
+  }
+
+  create(): void {
+    // Create is empty because we wait for loading 'complete' event to trigger transition
   }
 
   loadGoogleFont(): void {
@@ -173,6 +223,18 @@ export class LoadingScene extends Phaser.Scene {
   }
 
   checkFontAndTransition(): void {
+    if (this.transitionStarted) return;
+
+    // Check if enough time has passed
+    const elapsedTime = Date.now() - this.loadingStartTime;
+    if (elapsedTime < this.minLoadingTime) {
+      console.log(`Loading too fast (${elapsedTime}ms). Waiting remaining ${this.minLoadingTime - elapsedTime}ms...`);
+      this.time.delayedCall(this.minLoadingTime - elapsedTime, () => {
+        this.checkFontAndTransition();
+      });
+      return;
+    }
+
     // Check if font is loaded
     if (this.fontLoaded) {
       this.transitionToGame();
@@ -185,6 +247,11 @@ export class LoadingScene extends Phaser.Scene {
   }
 
   transitionToGame(): void {
+    if (this.transitionStarted) return;
+    this.transitionStarted = true;
+
+    console.log("Transitioning to GameScene...");
+
     // Stop loading sound
     if (this.audioManager) {
       // Impact sound on finish
@@ -192,18 +259,31 @@ export class LoadingScene extends Phaser.Scene {
       this.audioManager.play("knife-slash", { volume: 0.8 });
 
       const loadingSound = this.audioManager.getSound("loading-sound");
-      if (loadingSound) {
+      if (loadingSound && loadingSound.isPlaying) {
+        console.log("Fading out loading sound...");
         this.tweens.add({
           targets: loadingSound,
           volume: 0,
-          duration: 1000,
+          duration: 500,
           onComplete: () => {
+            console.log("Fade out complete. Stopping all sounds.");
             this.audioManager?.stopAll();
+
+            if (loadingSound.isPlaying) {
+              loadingSound.stop();
+            }
+
+            this.scene.start("GameScene");
           }
         });
       } else {
+        console.log("No loading sound playing. Transitioning immediately.");
         this.audioManager.stopAll();
+        this.scene.start("GameScene");
       }
+    } else {
+      console.log("No AudioManager. Transitioning immediately.");
+      this.scene.start("GameScene");
     }
 
     // Hide DOM loading screen
@@ -216,7 +296,7 @@ export class LoadingScene extends Phaser.Scene {
       }, 500);
     }
 
-    // Start game scene
-    this.scene.start("GameScene");
+    // Ensure listeners are cleaned up
+    this.cleanupListeners();
   }
 }

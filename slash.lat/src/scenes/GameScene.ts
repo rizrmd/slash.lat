@@ -46,10 +46,13 @@ export class GameScene extends Scene {
 
   // Background unlock levels
   private backgroundLevels = [
-    { coins: 0, background: 'bg-orange', name: 'Orange Level' },
-    { coins: 10000, background: 'bg-leaf', name: 'Leaf Level' },
-    { coins: 25000, background: 'bg-fly', name: 'Fly Level' },
-    { coins: 50000, background: 'game-bg', name: 'Master Level' },
+    { coins: 0, background: 'bg-orange', name: 'Orange Level', character: 'OrangeBot' },
+    { coins: 5000, background: 'bg-leaf', name: 'Leaf Level', character: 'LeafBot' },
+    { coins: 15000, background: 'bg-fly', name: 'Fly Level', character: 'FlyBot' },
+    { coins: 30000, background: 'game-bg', name: 'Bee Level', character: 'Bee' },
+    { coins: 50000, background: 'game-bg', name: 'Lion Level', character: 'Lion' },
+    { coins: 75000, background: 'game-bg', name: 'Robot Level', character: 'Robot' },
+    { coins: 100000, background: 'game-bg', name: 'Master Level', character: 'SnakeBot' },
   ];
 
   private hpBarBackground?: Phaser.GameObjects.Graphics;
@@ -70,6 +73,7 @@ export class GameScene extends Scene {
   private isPlayerActive: boolean = false; // Is player currently active?
   private activityCheckEvent?: Phaser.Time.TimerEvent;
   private isRetry: boolean = false;
+  private isInitializing: boolean = true; // Prevent damage during initialization
 
   constructor() {
     super({ key: "GameScene" });
@@ -86,8 +90,10 @@ export class GameScene extends Scene {
       this.audioManager = managers.audioManager;
     }
 
-    // Initial config calculation
-    this.updateGameConfig();
+    // CRITICAL: Set initialization flag IMMEDIATELY to block enemy attacks
+    // This happens BEFORE create() so enemies cannot attack during scene setup
+    this.isInitializing = true;
+    console.log('[INIT] Initialization protection ENABLED - enemies cannot attack yet');
   }
 
   /**
@@ -266,6 +272,11 @@ export class GameScene extends Scene {
     // Load saved progress (coins, unlocked backgrounds)
     this.loadProgress();
 
+    // CRITICAL: Reset HP to maxHP AFTER loadProgress() to prevent corrupted state
+    // This must happen here, not in init(), to ensure it overrides any loaded data
+    this.currentHP = this.maxHP;
+    console.log(`[HP INIT] HP reset to ${this.currentHP}/${this.maxHP}`);
+
     // Create separate layers for game objects and UI
     this.gameLayer = this.add.container(0, 0);
     this.uiLayer = this.add.container(0, 0);
@@ -401,21 +412,39 @@ export class GameScene extends Scene {
     }
 
     // Initialize audio manager sounds
-    this.audioManager?.addSound("knife-slash");
-    this.audioManager?.addSound("knife-clank");
-    this.audioManager?.addSound("punch-hit");
-    this.audioManager?.addSound("electric-spark");
-    this.audioManager?.addSound("explode");
-    this.audioManager?.addSound("coin-received");
+    // Initialize audio manager sounds
+    if (this.audioManager) {
+      this.audioManager.setScene(this);
 
-    // Character Specific & New Sounds
-    this.audioManager?.addSound("bee-audio");
-    this.audioManager?.addSound("lion-audio");
-    this.audioManager?.addSound("robot-audio");
-    this.audioManager?.addSound("alien-audio");
-    this.audioManager?.addSound("rusty-slice");
-    this.audioManager?.addSound("gunshot");
-    this.audioManager?.addSound("loading-sound");
+      // CRITICAL FAILSAFE: Ensure loading sound is stopped!
+
+      // 1. Try via AudioManager
+      console.log("[GameScene] Removing loading sound via Manager");
+      this.audioManager.removeSound("loading-sound");
+
+      // 2. Try via Scene Sound Manager globally
+      this.sound.getAll('loading-sound').forEach(s => {
+        console.log("[GameScene] Force stopping loading sound (via Global)");
+        s.stop();
+        s.destroy();
+      });
+
+      this.audioManager.addSound("knife-slash");
+      this.audioManager.addSound("knife-clank");
+      this.audioManager.addSound("punch-hit");
+      this.audioManager.addSound("electric-spark");
+      this.audioManager.addSound("explode");
+      this.audioManager.addSound("coin-received");
+
+      // Character Specific & New Sounds
+      this.audioManager.addSound("bee-audio");
+      this.audioManager.addSound("lion-audio");
+      this.audioManager.addSound("robot-audio");
+      this.audioManager.addSound("alien-audio");
+      this.audioManager.addSound("rusty-slice");
+      this.audioManager.addSound("gunshot");
+      // Stop adding loading-sound here, we don't need it in GameScene
+    }
 
     // Create animations BEFORE UI
     // Create electric-leftover animation
@@ -462,6 +491,11 @@ export class GameScene extends Scene {
     // Generate coin-based progression config (respects player level)
     const coinBasedConfig = this.getCoinBasedProgressionConfig();
 
+    // CRITICAL: Set initialization flag BEFORE creating ProgressionManager
+    // This prevents enemy spawns during grace period
+    this.isInitializing = true;
+    console.log('[INIT] Initialization protection ACTIVE - 3-second grace period');
+
     this.progressionManager = new ProgressionManager(
       this,
       coinBasedConfig,
@@ -477,8 +511,16 @@ export class GameScene extends Scene {
       this.gameConfig
     );
 
-    // Start the progression system
-    this.progressionManager.start();
+    // Start ProgressionManager AFTER 3-second grace period
+    this.time.delayedCall(3000, () => {
+      this.isInitializing = false;
+      console.log('[INIT] Grace period COMPLETE - enemies can now spawn and attack');
+
+      if (this.progressionManager) {
+        this.progressionManager.start();
+        console.log('[PROGRESSION] Enemy spawning started');
+      }
+    });
 
     // Initialize slash trail effect
     this.slashTrail = new SlashTrail(this, this.gameConfig);
@@ -505,6 +547,8 @@ export class GameScene extends Scene {
     window.addEventListener("orientationchange", () => this.checkOrientation());
     window.addEventListener("resize", () => this.checkOrientation());
   }
+
+
 
   checkOrientation(): void {
     // Both portrait and landscape modes are now supported
@@ -721,16 +765,9 @@ export class GameScene extends Scene {
     if (this.slashTrail?.isCurrentlyDrawing()) {
       this.slashTrail.endDrawing();
 
-      // TRIGGER COOLDOWN
-      this.isSlashCooldown = true;
-      this.canStartNewSlash = false; // Ensure locked
-
-      // Cooldown visualization (optional, maybe dim weapon icon?)
-      // For now just logic: 600ms cooldown
-      this.time.delayedCall(600, () => {
-        this.isSlashCooldown = false;
-        this.canStartNewSlash = true;
-      });
+      // INSTANT SLASH: No cooldown - allow rapid consecutive slashing
+      // User can now slice berkali-kali without delay
+      this.canStartNewSlash = true;
     }
 
     // Show damage numbers for all targets hit during this slash
@@ -1000,6 +1037,11 @@ export class GameScene extends Scene {
    * Called by ProgressionManager
    */
   spawnEnemy(characterClass: CharacterClass, position: { x: number; y: number }): void {
+    // CRITICAL: Block enemy spawning during initialization
+    if (this.isInitializing) {
+      console.log('[BLOCKED] Enemy spawn blocked during initialization period');
+      return;
+    }
     // Create target at specified position
     const target = new characterClass({
       scene: this,
@@ -1135,7 +1177,7 @@ export class GameScene extends Scene {
     // Update slash trail
     this.slashTrail?.update();
 
-    // CLEANUP: Remove any ghost/invisible targets (dead and invisible, or container destroyed)
+    // CLEANUP: Remove any ghost/invisible/fading targets
     this.targets = this.targets.filter(target => {
       const container = target.getContainer();
 
@@ -1145,9 +1187,21 @@ export class GameScene extends Scene {
         return false;
       }
 
-      // ONLY remove completely invisible targets if they are actually dead
-      // (Newly spawned enemies start at alpha 0, so we can't kill them based on alpha alone)
+      // Remove completely invisible targets if they are dead
       if (container.alpha <= 0.01 && target.isDead()) {
+        try { target.destroy(); } catch (e) { }
+        return false;
+      }
+
+      // CRITICAL FIX: Remove fading ghosts (alpha < 0.3) that are NOT in entrance animation
+      // Entrance animation targets start at alpha 0 and fade in to 1, so we check if alpha is stable/decreasing
+      // A target is considered "fading ghost" if:
+      // 1. Alpha is very low (< 0.3) - too transparent to interact with
+      // 2. AND it's been alive for more than 2 seconds (not a fresh spawn)
+      // This prevents removing newly spawned enemies that are fading IN
+      const isOldEnough = container.getData('spawnTime') && (Date.now() - container.getData('spawnTime')) > 2000;
+      if (container.alpha < 0.3 && isOldEnough) {
+        console.log(`[CLEANUP] Removing fading ghost with alpha: ${container.alpha.toFixed(2)}`);
         try { target.destroy(); } catch (e) { }
         return false;
       }
@@ -1894,6 +1948,12 @@ export class GameScene extends Scene {
   }
 
   takeDamage(damage: number, enemyX?: number, enemyY?: number): void {
+    // CRITICAL: Block damage during initialization (first 1 second)
+    if (this.isInitializing) {
+      console.log('[BLOCKED] Damage blocked during initialization period');
+      return;
+    }
+
     if (this.currentHP <= 0) return; // Already dead
 
     this.currentHP = Math.max(0, this.currentHP - damage);
@@ -1920,6 +1980,12 @@ export class GameScene extends Scene {
   }
 
   gameOver(): void {
+    // CRITICAL: Block game over during initialization
+    if (this.isInitializing) {
+      console.log('[BLOCKED] Game Over blocked during initialization period');
+      return;
+    }
+
     // 1. Stop all game systems
     this.progressionManager?.stop();
     this.input.off("pointerdown");
@@ -1927,6 +1993,12 @@ export class GameScene extends Scene {
     this.input.off("pointerup");
     this.tweens.killAll();
     this.isPlayerActive = false;
+
+    // CRITICAL FIX: Destroy all enemies to prevent event listener conflicts on retry
+    this.targets.forEach(target => {
+      target.destroy();
+    });
+    this.targets = [];
 
     // 2. Visual Effects
     this.cameras.main.shake(500, 0.05);
@@ -1959,71 +2031,193 @@ export class GameScene extends Scene {
   }
 
   showGameOverUI(): void {
-    const { canvasWidth, canvasHeight } = this.gameConfig;
+    const { canvasWidth, canvasHeight, dpr } = this.gameConfig;
     const centerX = canvasWidth / 2;
     const centerY = canvasHeight / 2;
 
     const container = this.add.container(centerX, centerY);
     container.setDepth(10001);
 
-    // GAME OVER Text
-    const title = this.add.text(0, -50, "GAME OVER", {
-      fontSize: "64px",
-      color: "#ff0000",
+    // 1. Premium Glass Panel Background - REMOVED per user request
+    const panelHeight = 350 * dpr; // Kept for positioning reference
+
+    // 2. GAME OVER Title (Cyberpunk Style)
+    const title = this.add.text(0, -panelHeight / 2 + 60 * dpr, "GAME OVER", {
+      fontFamily: "Jura",
+      fontSize: `${64 * dpr}px`, // Increased size since no panel constraint
+      color: "#ff3333", // Bright neon red
       fontStyle: "bold",
-      stroke: "#ffffff",
-      strokeThickness: 4
+      align: "center"
     }).setOrigin(0.5).setAlpha(0);
 
-    // Score Text
-    const scoreText = this.add.text(0, 20, `Coins Collected: ${this.coins}`, {
-      fontSize: "32px",
-      color: "#ffd700",
-      fontFamily: "Jura"
-    }).setOrigin(0.5).setAlpha(0);
+    // Add a shadow/glow effect
+    title.setShadow(0, 0, '#ff0000', 20 * dpr, true, true); // Stronger glow
 
-    // Level Text
-    const levelText = this.add.text(0, 60, `Reached Level: ${this.playerLevel}`, {
-      fontSize: "24px",
+    // 3. Stats Layout
+    // Coins
+    const scoreLabel = this.add.text(0, -40 * dpr, "COINS COLLECTED", {
+      fontFamily: "Jura",
+      fontSize: `${16 * dpr}px`, // Slightly larger
+      color: "#aaaaaa", // Lighter grey for better contrast on background
+      align: "center"
+    }).setOrigin(0.5);
+    scoreLabel.setShadow(1, 1, '#000000', 2, false, true);
+
+    const scoreValue = this.add.text(0, -5 * dpr, `${this.coins.toLocaleString()}`, {
+      fontFamily: "Jura",
+      fontSize: `${42 * dpr}px`,
+      color: "#FFD700", // Gold
+      fontStyle: "bold",
+    }).setOrigin(0.5);
+    scoreValue.setShadow(0, 0, '#DAA520', 10 * dpr, true, true);
+
+    // Level
+    const levelLabel = this.add.text(0, 40 * dpr, "LEVEL REACHED", {
+      fontFamily: "Jura",
+      fontSize: `${16 * dpr}px`,
+      color: "#aaaaaa",
+      align: "center"
+    }).setOrigin(0.5);
+    levelLabel.setShadow(1, 1, '#000000', 2, false, true);
+
+    const levelValue = this.add.text(0, 75 * dpr, `${this.playerLevel}`, {
+      fontFamily: "Jura",
+      fontSize: `${36 * dpr}px`,
       color: "#ffffff",
-      fontFamily: "Jura"
-    }).setOrigin(0.5).setAlpha(0);
+      fontStyle: "bold",
+    }).setOrigin(0.5);
+    levelValue.setShadow(0, 0, '#ffffff', 5 * dpr, true, true);
 
-    // Retry Button
-    const btnBg = this.add.rectangle(0, 150, 200, 60, 0xffffff).setInteractive({ cursor: 'pointer' });
-    const btnText = this.add.text(0, 150, "RETRY", {
-      fontSize: "28px",
-      color: "#000000",
-      fontStyle: "bold"
+    const statsContainer = this.add.container(0, 0, [scoreLabel, scoreValue, levelLabel, levelValue]);
+    statsContainer.setAlpha(0);
+
+    // 4. Premium 'RETRY' Button
+    const btnWidth = 220 * dpr;
+    const btnHeight = 60 * dpr;
+    const btnY = panelHeight / 2 - 45 * dpr;
+
+    const btnContainer = this.add.container(0, btnY);
+    btnContainer.setSize(btnWidth, btnHeight);
+    btnContainer.setInteractive({ cursor: 'pointer' });
+    btnContainer.setAlpha(0);
+
+    // Button Background - Modern Skewed Gradient
+    const btnGraphics = this.add.graphics();
+    const skewX = 20 * dpr; // Skew amount
+
+    const drawButton = (isHover: boolean) => {
+      btnGraphics.clear();
+
+      const w = btnWidth;
+      const h = btnHeight;
+      const x = -w / 2;
+      const y = -h / 2;
+
+      // Parallelogram path
+      btnGraphics.beginPath();
+      btnGraphics.moveTo(x + skewX, y);       // Top Left
+      btnGraphics.lineTo(x + w + skewX, y);   // Top Right
+      btnGraphics.lineTo(x + w - skewX, y + h); // Bottom Right
+      btnGraphics.lineTo(x - skewX, y + h);   // Bottom Left
+      btnGraphics.closePath();
+
+      if (isHover) {
+        // HOVER: Bright White/Red gradient
+        btnGraphics.fillGradientStyle(0xffffff, 0xffcccc, 0xff0000, 0xcc0000, 1);
+        // NO STROKE - prevents horizontal line artifact on mobile
+      } else {
+        // DEFAULT: Vibrant Red/Orange Gradient (Action Style)
+        btnGraphics.fillGradientStyle(0xff4444, 0xff0000, 0x990000, 0xcc0000, 1);
+        // NO STROKE - prevents horizontal line artifact on mobile
+      }
+
+      btnGraphics.fillPath();
+    };
+
+    drawButton(false);
+
+    const btnText = this.add.text(0, 0, "RETRY", {
+      fontFamily: "Jura",
+      fontSize: `${28 * dpr}px`, // Larger, bolder
+      color: "#ffffff",
+      fontStyle: "900" // Extra Bold
     }).setOrigin(0.5);
 
-    const btnContainer = this.add.container(0, 0, [btnBg, btnText]).setAlpha(0);
+    // Skew text slightly to match button? Maybe not readability first.
+    // btnText.setSkewX(-0.2); 
 
-    container.add([title, scoreText, levelText, btnContainer]);
+    btnContainer.add([btnGraphics, btnText]);
 
-    // Button interactions
-    btnBg.on('pointerover', () => btnBg.setFillStyle(0xdddddd));
-    btnBg.on('pointerout', () => btnBg.setFillStyle(0xffffff));
-    btnBg.on('pointerdown', () => {
-      // Restart current scene and pass retry flag
+    container.add([title, statsContainer, btnContainer]);
+
+    // Constant Pulse Animation (Heartbeat) to invite click
+    this.tweens.add({
+      targets: btnContainer,
+      scale: 1.05,
+      duration: 800,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut'
+    });
+
+    // Button Interactions
+    btnContainer.on('pointerover', () => {
+      drawButton(true);
+      btnText.setColor('#000000'); // Black text on bright button
+      btnText.setFontSize(`${30 * dpr}px`);
+      this.tweens.killTweensOf(btnContainer); // Stop pulse
+      btnContainer.setScale(1.1); // Immediate pop
+      this.input.setDefaultCursor('pointer');
+    });
+
+    btnContainer.on('pointerout', () => {
+      drawButton(false);
+      btnText.setColor('#ffffff');
+      btnText.setFontSize(`${28 * dpr}px`);
+      // Restart Pulse
+      this.tweens.add({
+        targets: btnContainer,
+        scale: 1.05,
+        duration: 800,
+        yoyo: true,
+        repeat: -1,
+        ease: 'Sine.easeInOut'
+      });
+      this.input.setDefaultCursor('default');
+    });
+
+    btnContainer.on('pointerdown', () => {
+      this.input.setDefaultCursor('default');
       this.scene.restart({ isRetry: true });
     });
 
-    // Animation Sequence (Manual chain for Phaser 4 compatibility)
+    // 5. Entrance Animation Sequence
+    // Elements slide in
     this.tweens.add({
       targets: title,
       alpha: 1,
-      y: -80,
-      duration: 500,
-      ease: 'Back.out',
-      onComplete: () => {
-        this.tweens.add({
-          targets: [scoreText, levelText, btnContainer],
-          alpha: 1,
-          duration: 400,
-          y: '+=20' // Subtle float up effect
-        });
-      }
+      y: title.y - 20 * dpr, // Move up slightly
+      duration: 600,
+      delay: 200,
+      ease: 'Cubic.out'
+    });
+
+    this.tweens.add({
+      targets: statsContainer,
+      alpha: 1,
+      y: statsContainer.y - 10 * dpr,
+      duration: 600,
+      delay: 400,
+      ease: 'Cubic.out'
+    });
+
+    this.tweens.add({
+      targets: btnContainer,
+      alpha: 1,
+      y: btnY - 10 * dpr,
+      duration: 600,
+      delay: 600,
+      ease: 'Cubic.out'
     });
   }
 
@@ -2143,17 +2337,13 @@ export class GameScene extends Scene {
     const flashHeight = gameHeight * dpr * 0.52; // 52% of screen height (40% + 30%)
 
     // Draw gradient (red at bottom, transparent at top)
-    // Since Phaser doesn't support gradient fills directly, we'll use multiple horizontal strips
-    const stripCount = 20;
-    const stripHeight = flashHeight / stripCount;
+    const y = gameHeight * dpr - flashHeight;
 
-    for (let i = 0; i < stripCount; i++) {
-      const alpha = 0.6 * (i / stripCount); // 0 to 0.6 (transparent to opaque)
-      const y = gameHeight * dpr - flashHeight + i * stripHeight;
-
-      flashGraphics.fillStyle(0xff0000, alpha);
-      flashGraphics.fillRect(0, y, canvasWidth * dpr, stripHeight + 1); // +1 to avoid gaps
-    }
+    // Top-Left, Top-Right, Bottom-Left, Bottom-Right colors and alphas
+    // Red color (0xff0000) for all corners
+    // Alpha 0 at top, Alpha 0.6 at bottom
+    flashGraphics.fillGradientStyle(0xff0000, 0xff0000, 0xff0000, 0xff0000, 0, 0, 0.6, 0.6);
+    flashGraphics.fillRect(0, y, canvasWidth * dpr, flashHeight);
 
     // Animate the flash (fade out)
     this.tweens.add({

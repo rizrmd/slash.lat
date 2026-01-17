@@ -8,6 +8,10 @@ export class AudioManager {
         this.scene = scene;
     }
 
+    setScene(scene: Phaser.Scene): void {
+        this.scene = scene;
+    }
+
     preloadAudio(key: string, path: string): void {
         this.scene.load.audio(key, path);
     }
@@ -30,6 +34,15 @@ export class AudioManager {
 
     stopAll(): void {
         this.sounds.forEach(sound => sound.stop());
+    }
+
+    removeSound(key: string): void {
+        const sound = this.sounds.get(key);
+        if (sound) {
+            sound.stop();
+            sound.destroy();
+            this.sounds.delete(key);
+        }
     }
 
     destroy(): void {

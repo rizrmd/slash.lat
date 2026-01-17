@@ -1,7 +1,7 @@
 import { Game, AUTO, Scale } from 'phaser';
+import { BootScene } from './scenes/BootScene';
 import { LoadingScene } from './scenes/LoadingScene';
 import { GameScene } from './scenes/GameScene';
-import { GameConfig } from './types';
 
 // ============================================================================
 // GAME CONFIGURATION
@@ -28,6 +28,10 @@ const config: Phaser.Types.Core.GameConfig = {
     roundPixels: false,
     pixelArt: false,
     powerPreference: 'high-performance'
+  },
+  audio: {
+    disableWebAudio: false,
+    noAudio: false
   },
   // Pass basic config, but Scene will handle dynamic resizing
   scene: [new LoadingScene(), new GameScene()]
