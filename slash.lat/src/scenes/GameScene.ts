@@ -408,6 +408,15 @@ export class GameScene extends Scene {
     this.audioManager?.addSound("explode");
     this.audioManager?.addSound("coin-received");
 
+    // Character Specific & New Sounds
+    this.audioManager?.addSound("bee-audio");
+    this.audioManager?.addSound("lion-audio");
+    this.audioManager?.addSound("robot-audio");
+    this.audioManager?.addSound("alien-audio");
+    this.audioManager?.addSound("rusty-slice");
+    this.audioManager?.addSound("gunshot");
+    this.audioManager?.addSound("loading-sound");
+
     // Create animations BEFORE UI
     // Create electric-leftover animation
     const electricFrames = [];

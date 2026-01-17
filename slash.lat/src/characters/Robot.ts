@@ -17,11 +17,12 @@ export class Robot extends Target {
         return "robot-bot";
     }
 
-    getAudioKeys(): { slash?: string; hit?: string; spark?: string } {
+    getAudioKeys(): { slash?: string; hit?: string; spark?: string; emerge?: string } {
         return {
             slash: "knife-slash",
             hit: "robot-audio",
             spark: "electric-spark",
+            emerge: "robot-audio",
         };
     }
 

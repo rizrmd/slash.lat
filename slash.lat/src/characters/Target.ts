@@ -607,8 +607,13 @@ export abstract class Target {
   }
 
   protected onFullyVisible(): void {
+    // Play emerge sound if available
+    const audioKeys = this.getAudioKeys();
+    if (audioKeys.emerge) {
+      this.audioManager.play(audioKeys.emerge, { volume: 0.5 });
+    }
+
     // Override in subclasses to handle when character reaches 100% opacity
-    // Subclasses should call super.onFullyVisible() if they want to keep default behavior
   }
 
   extractImageData(): void {
@@ -1237,6 +1242,6 @@ export abstract class Target {
 
   abstract getAssetKey(): string;
   abstract getSize(): { w: number; h: number };
-  abstract getAudioKeys(): { slash?: string; hit?: string; spark?: string };
+  abstract getAudioKeys(): { slash?: string; hit?: string; spark?: string; emerge?: string };
   abstract getMaxHP(): number;
 }

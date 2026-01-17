@@ -17,11 +17,12 @@ export class Bee extends Target {
         return "bee-bot";
     }
 
-    getAudioKeys(): { slash?: string; hit?: string; spark?: string } {
+    getAudioKeys(): { slash?: string; hit?: string; spark?: string; emerge?: string } {
         return {
             slash: "knife-slash",
             hit: "bee-audio",
             spark: "electric-spark",
+            emerge: "bee-audio",
         };
     }
 

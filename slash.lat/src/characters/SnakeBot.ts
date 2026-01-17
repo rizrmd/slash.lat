@@ -17,11 +17,12 @@ export class SnakeBot extends Target {
         return "snake-bot";
     }
 
-    getAudioKeys(): { slash?: string; hit?: string; spark?: string } {
+    getAudioKeys(): { slash?: string; hit?: string; spark?: string; emerge?: string } {
         return {
             slash: "rusty-slice",
             hit: "knife-clank",
             spark: "electric-spark",
+            emerge: "alien-audio",
         };
     }
 

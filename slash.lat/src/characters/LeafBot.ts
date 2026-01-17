@@ -42,11 +42,12 @@ export class LeafBot extends Target {
     return "leaf-bot-720";
   }
 
-  getAudioKeys(): { slash?: string; hit?: string; spark?: string } {
+  getAudioKeys(): { slash?: string; hit?: string; spark?: string; emerge?: string } {
     return {
       slash: "knife-slash",
       hit: "alien-audio",
       spark: "electric-spark",
+      emerge: "alien-audio",
     };
   }
 

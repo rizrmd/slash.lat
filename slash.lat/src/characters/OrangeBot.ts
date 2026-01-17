@@ -30,11 +30,12 @@ export class OrangeBot extends Target {
     return "orange-bot";
   }
 
-  getAudioKeys(): { slash?: string; hit?: string; spark?: string } {
+  getAudioKeys(): { slash?: string; hit?: string; spark?: string; emerge?: string } {
     return {
       slash: "knife-slash",
       hit: "knife-clank",
       spark: "electric-spark",
+      emerge: "robot-audio",
     };
   }
 

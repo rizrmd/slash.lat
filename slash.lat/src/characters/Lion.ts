@@ -17,11 +17,12 @@ export class Lion extends Target {
         return "lion-bot";
     }
 
-    getAudioKeys(): { slash?: string; hit?: string; spark?: string } {
+    getAudioKeys(): { slash?: string; hit?: string; spark?: string; emerge?: string } {
         return {
             slash: "knife-slash",
             hit: "lion-audio",
             spark: "electric-spark",
+            emerge: "lion-audio", // Roar sound
         };
     }
 
