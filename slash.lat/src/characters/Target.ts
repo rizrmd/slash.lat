@@ -1216,8 +1216,8 @@ export abstract class Target {
         if (gameScene.takeDamage) {
           gameScene.takeDamage(250, this.container.x, this.container.y);
 
-          // Play hit sound
-          this.audioManager.play("punch-hit");
+          // Play gunshot sound when enemy attacks user
+          this.audioManager.play("gunshot");
         }
 
         // Enemy leaves after attacking (or dies?)

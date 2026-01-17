@@ -83,6 +83,7 @@ export class LoadingScene extends Phaser.Scene {
       this.audioManager.preloadAudio("robot-audio", "audio/Foot Step robot.mp3");
       this.audioManager.preloadAudio("alien-audio", "audio/little-alien.mp3");
       this.audioManager.preloadAudio("rusty-slice", "audio/rusty-blade-slice.mp3.mp3");
+      this.audioManager.preloadAudio("gunshot", "audio/single-pistol-gunshot.mp3");
     }
 
     // Load backgrounds

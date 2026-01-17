@@ -72,8 +72,8 @@ export class LeafBot extends Target {
           // Recalibrate hitbox and slash damage for the final frame
           this.extractImageData();
 
-          // Play hit sound
-          this.audioManager.play("punch-hit");
+          // Play gunshot sound when enemy attacks user
+          this.audioManager.play("gunshot");
 
           // Damage player with enemy position for blood particles
           const gameScene = this.scene as GameScene;
