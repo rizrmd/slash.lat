@@ -733,13 +733,15 @@ export class GameScene extends Scene {
       for (const target of this.hitTargetsThisSlash) {
         // Use target's center position for damage text
         const targetBounds = target.getContainer().getBounds();
-        // Show SLASH! text instead of numbers
+        // Show SLASH! text instead of numbers (DISABLED)
+        /*
         const damageText = target.showDamage(
           damage,
           targetBounds.centerX,
           targetBounds.centerY
         );
         this.ignoreFromUICamera(damageText);
+        */
 
         // Apply damage to target
         target.takeDamage(damage);

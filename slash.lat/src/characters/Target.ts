@@ -863,7 +863,7 @@ export abstract class Target {
     const damageText = this.scene.add.text(
       hitX,
       hitY,
-      damage >= 9000 ? "SLASH!" : Math.round(damage).toString(),
+      Math.round(damage).toString(),
       {
         fontFamily: "Jura, sans-serif",
         fontSize: damage >= 9000 ? `${28 * dpr}px` : `${20 * dpr}px`,
