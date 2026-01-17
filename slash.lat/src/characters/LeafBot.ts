@@ -45,7 +45,7 @@ export class LeafBot extends Target {
   getAudioKeys(): { slash?: string; hit?: string; spark?: string } {
     return {
       slash: "knife-slash",
-      hit: "knife-clank",
+      hit: "alien-audio",
       spark: "electric-spark",
     };
   }

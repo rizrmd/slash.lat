@@ -19,7 +19,7 @@ export class SnakeBot extends Target {
 
     getAudioKeys(): { slash?: string; hit?: string; spark?: string } {
         return {
-            slash: "knife-slash",
+            slash: "rusty-slice",
             hit: "knife-clank",
             spark: "electric-spark",
         };

@@ -20,7 +20,7 @@ export class Robot extends Target {
     getAudioKeys(): { slash?: string; hit?: string; spark?: string } {
         return {
             slash: "knife-slash",
-            hit: "knife-clank",
+            hit: "robot-audio",
             spark: "electric-spark",
         };
     }

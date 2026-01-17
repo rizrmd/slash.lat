@@ -20,7 +20,7 @@ export class Lion extends Target {
     getAudioKeys(): { slash?: string; hit?: string; spark?: string } {
         return {
             slash: "knife-slash",
-            hit: "knife-clank",
+            hit: "lion-audio",
             spark: "electric-spark",
         };
     }
