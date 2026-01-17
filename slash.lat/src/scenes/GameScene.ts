@@ -90,6 +90,10 @@ export class GameScene extends Scene {
       this.audioManager = managers.audioManager;
     }
 
+    // CRITICAL: Calculate game config FIRST before any initialization
+    // Without this, all rendering will fail (blank screen)
+    this.updateGameConfig();
+
     // CRITICAL: Set initialization flag IMMEDIATELY to block enemy attacks
     // This happens BEFORE create() so enemies cannot attack during scene setup
     this.isInitializing = true;
