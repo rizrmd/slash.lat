@@ -1084,17 +1084,25 @@ export abstract class Target {
     explosionObjects.push(smokeEmitter);
 
     // Emit all particles
-    flashEmitter.explode();
-    fireEmitter.explode();
+    if (flashEmitter && flashEmitter.active) {
+      flashEmitter.explode();
+    }
+    if (fireEmitter && fireEmitter.active) {
+      fireEmitter.explode();
+    }
 
     // Delayed smoke for realism
     this.scene.time.delayedCall(100, () => {
-      smokeEmitter.explode();
+      if (smokeEmitter && smokeEmitter.active && this.scene && this.scene.sys.isActive()) {
+        smokeEmitter.explode();
+      }
     });
 
     // Trigger electric-leftover sprite after a short delay
     const randomDelay = 50 + Math.floor(Math.random() * 200); // Random 50-250ms delay
     this.scene.time.delayedCall(randomDelay, () => {
+      if (!this.scene || !this.scene.sys.isActive()) return;
+
       const electricSprite = this.scene.add.sprite(centerX, centerY, "electric-leftover-6");
       const electricScale = (characterSize / electricSprite.width) * 0.8;
       electricSprite.setScale(electricScale);
@@ -1116,9 +1124,11 @@ export abstract class Target {
 
     // Clean up particle emitters
     this.scene.time.delayedCall(2000, () => {
-      flashEmitter.destroy();
-      fireEmitter.destroy();
-      smokeEmitter.destroy();
+      if (!this.scene || !this.scene.sys.isActive()) return;
+
+      if (flashEmitter && flashEmitter.active) flashEmitter.destroy();
+      if (fireEmitter && fireEmitter.active) fireEmitter.destroy();
+      if (smokeEmitter && smokeEmitter.active) smokeEmitter.destroy();
       if (onComplete) onComplete();
     });
 
