@@ -11,7 +11,7 @@ import { GameScene } from './scenes/GameScene';
  * Calculate Device Pixel Ratio (DPR)
  * Cap at 2x for performance on mobile devices (reduces lag)
  */
-const dpr = Math.min(window.devicePixelRatio || 1, 2);
+const dpr = Math.min(window.devicePixelRatio || 1, 1.5);
 
 const config: Phaser.Types.Core.GameConfig = {
   type: AUTO,

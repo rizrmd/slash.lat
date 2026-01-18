@@ -75,6 +75,8 @@ export class GameScene extends Scene {
   private isRetry: boolean = false;
   private isInitializing: boolean = true; // Prevent damage during initialization
 
+  private resizeHandler?: () => void;
+
   constructor() {
     super({ key: "GameScene" });
   }
@@ -249,6 +251,23 @@ export class GameScene extends Scene {
    * Called when scene shuts down (restart or switch)
    * CRITICAL for preventing memory leaks and performance degradation
    */
+  cleanupGameState(): void {
+    console.log('[SCENE] Cleaning up game state...');
+
+    // Clear targets array (objects should be destroyed in shutdown, but array needs clearing)
+    this.targets = [];
+    this.hitTargetsThisSlash = new Set();
+
+    // Reset flags
+    this.canStartNewSlash = true;
+    this.isSlashCooldown = false;
+    this.hasHitTarget = false;
+    this.isPlayerActive = false;
+
+    // Reset HP and other stats
+    this.currentHP = this.maxHP;
+  }
+
   shutdown(): void {
     console.log('[SCENE] Shutting down GameScene - cleaning up resources...');
 
@@ -266,7 +285,7 @@ export class GameScene extends Scene {
       this.slashTrail = undefined as any;
     }
     if (this.sparks) {
-      // Sparks cleanup if needed, particles usually auto-destroy with scene
+      this.sparks.destroy();
       this.sparks = undefined as any;
     }
 
@@ -278,8 +297,19 @@ export class GameScene extends Scene {
     this.tweens.killAll();
     this.time.removeAllEvents();
 
-    // 6. Audio (optional: stop loops if any)
-    // this.audioManager.stopAll(); // Don't stop bgm if it persists across retry
+    // 6. Remove Window Listeners (CRITICAL for cleaning up re-created anonymous functions)
+    if (this.resizeHandler) {
+      window.removeEventListener("orientationchange", this.resizeHandler);
+      window.removeEventListener("resize", this.resizeHandler);
+    }
+
+    // 7. Remove Phaser Scale Listeners (CRITICAL: Scale Manager is global)
+    this.scale.off('resize', this.handleResize, this);
+
+    // 8. Cleanup Audio (Prevent SoundManager bloat)
+    if (this.audioManager) {
+      this.audioManager.cleanup();
+    }
 
     console.log('[SCENE] Shutdown complete');
   }
@@ -291,6 +321,10 @@ export class GameScene extends Scene {
     // CRITICAL: Setup proper reactor/shutdown cleanup to prevent memory leaks and lag on retry
     this.events.off('shutdown'); // Clear previous listeners just in case
     this.events.on('shutdown', this.shutdown, this);
+
+    // CRITICAL: Clean up previous game state if this is a reuse of the scene object
+    // This handles the case where Phaser reuses the same Scene instance (which it often does)
+    this.cleanupGameState();
 
     const {
       canvasWidth,
@@ -499,24 +533,28 @@ export class GameScene extends Scene {
     for (let i = 6; i <= 10; i++) {
       electricFrames.push({ key: `electric-leftover-${i}` });
     }
-    this.anims.create({
-      key: "electric-leftover-anim",
-      frames: electricFrames,
-      frameRate: 20,
-      repeat: 0,
-    });
+    if (!this.anims.exists("electric-leftover-anim")) {
+      this.anims.create({
+        key: "electric-leftover-anim",
+        frames: electricFrames,
+        frameRate: 20,
+        repeat: 0,
+      });
+    }
 
     // Create coin spin animation
     const coinFrames = [];
     for (let i = 1; i <= 6; i++) {
       coinFrames.push({ key: `coin-${i}` });
     }
-    this.anims.create({
-      key: "coin-spin",
-      frames: coinFrames,
-      frameRate: 12,
-      repeat: -1, // Loop forever
-    });
+    if (!this.anims.exists("coin-spin")) {
+      this.anims.create({
+        key: "coin-spin",
+        frames: coinFrames,
+        frameRate: 12,
+        repeat: -1, // Loop forever
+      });
+    }
 
     // Create UI (HP bar and coins) - AFTER animations are created
     this.createUI();
@@ -643,8 +681,10 @@ export class GameScene extends Scene {
     this.input.on("pointerout", this.onPointerUp, this);
 
     // Listen for orientation changes
-    window.addEventListener("orientationchange", () => this.checkOrientation());
-    window.addEventListener("resize", () => this.checkOrientation());
+    // CRITICAL: Store handler reference to remove it on shutdown/restart
+    this.resizeHandler = () => this.checkOrientation();
+    window.addEventListener("orientationchange", this.resizeHandler);
+    window.addEventListener("resize", this.resizeHandler);
   }
 
 
@@ -1272,6 +1312,7 @@ export class GameScene extends Scene {
     this.slashTrail?.update();
 
     // CLEANUP: Remove any ghost/invisible/fading targets
+    const initialCount = this.targets.length;
     this.targets = this.targets.filter(target => {
       const container = target.getContainer();
 
@@ -1295,13 +1336,21 @@ export class GameScene extends Scene {
       // This prevents removing newly spawned enemies that are fading IN
       const isOldEnough = container.getData('spawnTime') && (Date.now() - container.getData('spawnTime')) > 2000;
       if (container.alpha < 0.3 && isOldEnough) {
-        console.log(`[CLEANUP] Removing fading ghost with alpha: ${container.alpha.toFixed(2)}`);
+        // console.log(`[CLEANUP] Removing fading ghost with alpha: ${container.alpha.toFixed(2)}`);
         try { target.destroy(); } catch (e) { }
         return false;
       }
 
       return true;
     });
+
+    // Notify progression manager for every target removed
+    const removedCount = initialCount - this.targets.length;
+    if (removedCount > 0 && this.progressionManager) {
+      for (let i = 0; i < removedCount; i++) {
+        this.progressionManager.onEnemyKilled();
+      }
+    }
 
     // BACKGROUND PARALLAX (Real-time depth reaction)
     const { canvasWidth, canvasHeight, isMobile, dpr } = this.gameConfig;
@@ -1525,49 +1574,53 @@ export class GameScene extends Scene {
   }
 
   updateHPBar(): void {
-    if (!this.hpBarFill) return;
+    if (!this.hpBarFill || !this.hpBarFill.scene) return;
 
-    const { gameHeight, dpr } = this.gameConfig;
-    const padding = 20 * dpr;
-    const hpBarWidth = 150 * dpr;
-    const hpBarHeight = 20 * dpr;
-    const hpBarX = padding;
-    const hpBarY = gameHeight * dpr - padding - hpBarHeight;
-    const hpBarSkew = 15 * dpr;
-    const inset = 3 * dpr; // Inner padding (black padding between fill and border)
+    try {
+      const { gameHeight, dpr } = this.gameConfig;
+      const padding = 20 * dpr;
+      const hpBarWidth = 150 * dpr;
+      const hpBarHeight = 20 * dpr;
+      const hpBarX = padding;
+      const hpBarY = gameHeight * dpr - padding - hpBarHeight;
+      const hpBarSkew = 15 * dpr;
+      const inset = 3 * dpr; // Inner padding (black padding between fill and border)
 
-    const hpPercentage = this.currentHP / this.maxHP;
-    const innerHeight = hpBarHeight - inset * 2;
+      const hpPercentage = this.currentHP / this.maxHP;
+      const innerHeight = hpBarHeight - inset * 2;
 
-    // Reduce inner slant for better proportions
-    const skewRatio = innerHeight / hpBarHeight;
-    const innerSkew = hpBarSkew * skewRatio;
+      // Reduce inner slant for better proportions
+      const skewRatio = innerHeight / hpBarHeight;
+      const innerSkew = hpBarSkew * skewRatio;
 
-    // Adjust horizontal offset for the reduced slant
-    const horizontalShift = (inset * hpBarSkew) / hpBarHeight;
-    const fillWidth = (hpBarWidth - inset * 2) * hpPercentage;
+      // Adjust horizontal offset for the reduced slant
+      const horizontalShift = (inset * hpBarSkew) / hpBarHeight;
+      const fillWidth = (hpBarWidth - inset * 2) * hpPercentage;
 
-    // White fill color
-    const color = 0xffffff;
+      // White fill color
+      const color = 0xffffff;
 
-    this.hpBarFill.clear();
-    this.hpBarFill.fillStyle(color, 1);
+      this.hpBarFill.clear();
+      this.hpBarFill.fillStyle(color, 1);
 
-    // Draw inner parallelogram fill with adjusted horizontal position
-    const innerX = hpBarX + inset + horizontalShift;
-    const innerY = hpBarY + inset;
+      // Draw inner parallelogram fill with adjusted horizontal position
+      const innerX = hpBarX + inset + horizontalShift;
+      const innerY = hpBarY + inset;
 
-    this.hpBarFill.beginPath();
-    this.hpBarFill.moveTo(innerX, innerY + innerHeight);
-    this.hpBarFill.lineTo(innerX + fillWidth, innerY + innerHeight);
-    this.hpBarFill.lineTo(innerX + fillWidth + innerSkew, innerY);
-    this.hpBarFill.lineTo(innerX + innerSkew, innerY);
-    this.hpBarFill.closePath();
-    this.hpBarFill.fillPath();
+      this.hpBarFill.beginPath();
+      this.hpBarFill.moveTo(innerX, innerY + innerHeight);
+      this.hpBarFill.lineTo(innerX + fillWidth, innerY + innerHeight);
+      this.hpBarFill.lineTo(innerX + fillWidth + innerSkew, innerY);
+      this.hpBarFill.lineTo(innerX + innerSkew, innerY);
+      this.hpBarFill.closePath();
+      this.hpBarFill.fillPath();
 
-    // Update HP text
-    if (this.hpText) {
-      this.hpText.setText(`${Math.ceil(this.currentHP)}/${this.maxHP}`);
+      // Update HP text
+      if (this.hpText && this.hpText.active) {
+        this.hpText.setText(`${Math.ceil(this.currentHP)}/${this.maxHP}`);
+      }
+    } catch (e) {
+      console.warn('Error updating HP bar:', e);
     }
   }
 

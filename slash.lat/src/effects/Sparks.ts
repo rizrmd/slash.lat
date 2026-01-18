@@ -105,6 +105,9 @@ export class Sparks {
         if (this.sparkTimer) {
             this.sparkTimer.remove();
         }
+        if (this.sparkSound) {
+            this.sparkSound.destroy();
+        }
         this.sparkParticles.destroy();
     }
 }

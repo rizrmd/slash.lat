@@ -140,6 +140,8 @@ export class ProgressionManager {
     this.waveTimer?.remove();
     this.waveDelayTimer?.remove();
     this.spawnTimer?.remove();
+    // Safety: Reset active count when stopped
+    this.activeEnemyCount = 0;
   }
 
   /**

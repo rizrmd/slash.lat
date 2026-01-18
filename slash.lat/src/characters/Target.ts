@@ -97,8 +97,8 @@ export abstract class Target {
     this.extractImageData();
 
     // Listen to enemy damage events - react when other characters are slashed
-    this.scene.events.on('enemy-damaged', this.onEnemyDamaged.bind(this));
-    this.scene.events.on('enemy-killed', this.onEnemyKilled.bind(this));
+    this.scene.events.on('enemy-damaged', this.onEnemyDamaged, this);
+    this.scene.events.on('enemy-killed', this.onEnemyKilled, this);
 
     // Store final position
     const finalX = config.x;
@@ -1209,6 +1209,10 @@ export abstract class Target {
     // Destroy shadow to prevent ghost shadows
     this.shadow?.clear();
     this.shadow?.destroy();
+
+    // Destroy all particle emitters
+    this.particleEmitters.forEach(emitter => emitter.destroy());
+    this.particleEmitters = [];
 
     // Finally destroy container (this will destroy all children)
     this.container.destroy();

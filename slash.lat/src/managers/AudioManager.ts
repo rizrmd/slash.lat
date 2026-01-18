@@ -45,8 +45,15 @@ export class AudioManager {
         }
     }
 
-    destroy(): void {
-        this.sounds.forEach(sound => sound.destroy());
+    cleanup(): void {
+        this.sounds.forEach(sound => {
+            sound.stop();
+            sound.destroy();
+        });
         this.sounds.clear();
+    }
+
+    destroy(): void {
+        this.cleanup();
     }
 }
