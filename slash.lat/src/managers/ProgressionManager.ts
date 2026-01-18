@@ -90,7 +90,7 @@ export class ProgressionManager {
   // State tracking
   private activeEnemyCount: number = 0;
   private gameStartTime: number = 0;
-  private isActive: boolean = false;
+  public isActive: boolean = false;
 
   // Wave mode state
   private currentWaveIndex: number = 0;

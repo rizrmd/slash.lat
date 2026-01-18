@@ -177,72 +177,81 @@ export class GameScene extends Scene {
   }
 
   handleResize(gameSize: Phaser.Structs.Size, baseSize: Phaser.Structs.Size, displaySize: Phaser.Structs.Size, previousWidth: number, previousHeight: number): void {
-    this.updateGameConfig();
+    try {
+      this.updateGameConfig();
 
-    // Update camera bounds to match new world size
-    this.cameras.main.setViewport(0, 0, this.gameConfig.canvasWidth, this.gameConfig.canvasHeight);
-    this.cameras.main.setBounds(0, 0, this.gameConfig.gameWidth, this.gameConfig.gameHeight);
+      // Update camera bounds to match new world size
+      this.cameras.main.setViewport(0, 0, this.gameConfig.canvasWidth, this.gameConfig.canvasHeight);
+      this.cameras.main.setBounds(0, 0, this.gameConfig.gameWidth, this.gameConfig.gameHeight);
 
-    if (this.uiCamera) {
-      this.uiCamera.setViewport(0, 0, this.gameConfig.canvasWidth, this.gameConfig.canvasHeight);
-    }
-
-    // Centered background container
-    if (this.backgroundContainer) {
-      this.backgroundContainer.setPosition(this.gameConfig.canvasWidth / 2, this.gameConfig.canvasHeight / 2);
-    }
-
-    // Mobile: Center background image and particles directly (since they're not in the container)
-    const { isMobile } = this.gameConfig;
-    if (isMobile) {
-      if (this.gameBackground) {
-        this.gameBackground.setPosition(this.gameConfig.canvasWidth / 2, this.gameConfig.canvasHeight / 2);
+      if (this.uiCamera) {
+        this.uiCamera.setViewport(0, 0, this.gameConfig.canvasWidth, this.gameConfig.canvasHeight);
       }
-      if (this.backgroundParticles) {
-        this.backgroundParticles.setPosition(this.gameConfig.canvasWidth / 2, this.gameConfig.canvasHeight / 2);
+
+      // Centered background container
+      if (this.backgroundContainer) {
+        this.backgroundContainer.setPosition(this.gameConfig.canvasWidth / 2, this.gameConfig.canvasHeight / 2);
       }
-    }
 
-    this.updateBackgroundSize();
+      // Mobile: Center background image and particles directly (since they're not in the container)
+      const { isMobile } = this.gameConfig;
+      if (isMobile) {
+        if (this.gameBackground) {
+          this.gameBackground.setPosition(this.gameConfig.canvasWidth / 2, this.gameConfig.canvasHeight / 2);
+        }
+        if (this.backgroundParticles) {
+          this.backgroundParticles.setPosition(this.gameConfig.canvasWidth / 2, this.gameConfig.canvasHeight / 2);
+        }
+      }
 
-    // Rebuild UI to fit new layout
-    this.uiLayer?.removeAll(true);
-    this.createUI();
-    if (this.weaponManager) {
-      this.weaponManager.createWeaponIndicator();
+      this.updateBackgroundSize();
+
+      // Rebuild UI to fit new layout
+      this.uiLayer?.removeAll(true);
+      try { this.createUI(); } catch (e) { console.warn('createUI failed in resize:', e); }
+
+      if (this.weaponManager) {
+        try { this.weaponManager.createWeaponIndicator(); } catch (e) { console.warn('weaponManager resize failed:', e); }
+      }
+    } catch (e) {
+      console.warn('handleResize failed:', e);
     }
   }
 
   updateBackgroundSize(): void {
     if (!this.gameBackground) return;
 
-    const fullCanvasWidth = this.cameras.main.width;
-    const fullCanvasHeight = this.cameras.main.height;
+    try {
+      const fullCanvasWidth = this.cameras.main.width;
+      const fullCanvasHeight = this.cameras.main.height;
 
-    const bgWidth = this.gameBackground.width;
-    const bgHeight = this.gameBackground.height;
+      const bgWidth = this.gameBackground.width;
+      const bgHeight = this.gameBackground.height;
 
-    // Safety check to prevent division by zero
-    if (bgHeight <= 0 || fullCanvasHeight <= 0) return;
+      // Safety check to prevent division by zero
+      if (bgHeight <= 0 || fullCanvasHeight <= 0) return;
 
-    const bgAspectRatio = bgWidth / bgHeight;
-    const screenAspectRatio = fullCanvasWidth / fullCanvasHeight;
+      const bgAspectRatio = bgWidth / bgHeight;
+      const screenAspectRatio = fullCanvasWidth / fullCanvasHeight;
 
-    let displayWidth: number;
-    let displayHeight: number;
+      let displayWidth: number;
+      let displayHeight: number;
 
-    if (bgAspectRatio > screenAspectRatio) {
-      // Background wider than screen - fit to HEIGHT (cover mode)
-      displayHeight = fullCanvasHeight;
-      displayWidth = fullCanvasHeight * bgAspectRatio;
-    } else {
-      // Background taller than screen - fit to WIDTH (cover mode)
-      displayWidth = fullCanvasWidth;
-      displayHeight = fullCanvasWidth / bgAspectRatio;
+      if (bgAspectRatio > screenAspectRatio) {
+        // Background wider than screen - fit to HEIGHT (cover mode)
+        displayHeight = fullCanvasHeight;
+        displayWidth = fullCanvasHeight * bgAspectRatio;
+      } else {
+        // Background taller than screen - fit to WIDTH (cover mode)
+        displayWidth = fullCanvasWidth;
+        displayHeight = fullCanvasWidth / bgAspectRatio;
+      }
+
+      // Safety: scale up slightly (5%) to ensure no black edges / rounding gaps
+      this.gameBackground.setDisplaySize(displayWidth * 1.05, displayHeight * 1.05);
+    } catch (e) {
+      // Ignore background resize errors
     }
-
-    // Safety: scale up slightly (5%) to ensure no black edges / rounding gaps
-    this.gameBackground.setDisplaySize(displayWidth * 1.05, displayHeight * 1.05);
   }
 
   // Preload handled by LoadingScene
@@ -276,16 +285,16 @@ export class GameScene extends Scene {
     this.progressionManager = undefined;
 
     // 2. Clear Arrays & Lists
-    this.targets.forEach(t => t.destroy());
+    this.targets.forEach(t => { try { t.destroy(); } catch (e) { } });
     this.targets = [];
 
     // 3. Destroy Effects
     if (this.slashTrail) {
-      this.slashTrail.destroy();
+      try { this.slashTrail.destroy(); } catch (e) { }
       this.slashTrail = undefined as any;
     }
     if (this.sparks) {
-      this.sparks.destroy();
+      try { this.sparks.destroy(); } catch (e) { }
       this.sparks = undefined as any;
     }
 
@@ -1308,8 +1317,17 @@ export class GameScene extends Scene {
   }
 
   update(): void {
+    // FAILSAFE: If initialization gets stuck for more than 5 seconds, force start
+    if (this.isInitializing && this.time.now > 5000 && this.progressionManager && !this.progressionManager.isActive) {
+      console.warn('[FAILSAFE] Forced initialization completion!');
+      this.isInitializing = false;
+      this.progressionManager.start();
+    }
+
     // Update slash trail
-    this.slashTrail?.update();
+    if (this.slashTrail) {
+      try { this.slashTrail.update(); } catch (e) { }
+    }
 
     // CLEANUP: Remove any ghost/invisible/fading targets
     const initialCount = this.targets.length;
