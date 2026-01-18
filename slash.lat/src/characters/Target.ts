@@ -977,163 +977,173 @@ export abstract class Target {
   }
 
   explode(onComplete?: () => void): Phaser.GameObjects.GameObject[] {
-    const dpr = this.gameConfig.dpr;
-    const containerBounds = this.container.getBounds();
-
-    // Get the center position in screen coordinates
-    // The container's position is in game area coordinates, but for display
-    // we need to account for the camera offset on desktop
-    // Since getBounds() returns world coordinates, we can use them directly
-    const centerX = containerBounds.centerX;
-    const centerY = containerBounds.centerY;
-
-    const characterSize = Math.max(containerBounds.width, containerBounds.height);
-
-    // Track all explosion objects for camera ignore
-    const explosionObjects: Phaser.GameObjects.GameObject[] = [];
-
-    // Bright flash circle - intense light burst
-    const flashCircle = this.scene.add.circle(centerX, centerY, characterSize * 0.3, 0xffffff, 1);
-    flashCircle.setDepth(102);
-    flashCircle.setBlendMode(Phaser.BlendModes.ADD);
-    explosionObjects.push(flashCircle);
-    this.scene.tweens.add({
-      targets: flashCircle,
-      scale: 4,
-      alpha: 0,
-      duration: 300,
-      ease: "Cubic.easeOut",
-      onComplete: () => flashCircle.destroy(),
-    });
-
-    // Secondary glow ring
-    const glowRing = this.scene.add.circle(centerX, centerY, characterSize * 0.4, 0xffff00, 0.8);
-    glowRing.setDepth(102);
-    glowRing.setBlendMode(Phaser.BlendModes.ADD);
-    explosionObjects.push(glowRing);
-    this.scene.tweens.add({
-      targets: glowRing,
-      scale: 3,
-      alpha: 0,
-      duration: 500,
-      ease: "Cubic.easeOut",
-      onComplete: () => glowRing.destroy(),
-    });
-
-    // Outer transparent ring - final light wave
-    const outerRing = this.scene.add.circle(centerX, centerY, characterSize * 0.5, 0xffaa00, 0.5);
-    outerRing.setDepth(102);
-    outerRing.setBlendMode(Phaser.BlendModes.ADD);
-    explosionObjects.push(outerRing);
-    this.scene.tweens.add({
-      targets: outerRing,
-      scale: 5,
-      alpha: 0,
-      duration: 700,
-      ease: "Cubic.easeOut",
-      onComplete: () => outerRing.destroy(),
-    });
-
-    // Core explosion flash - bright white burst
-    const flashEmitter = this.scene.add.particles(centerX, centerY, "fire-particle", {
-      speed: { min: 80 * dpr, max: 150 * dpr },
-      angle: { min: -110, max: -70 }, // Focused upward
-      scale: { start: 3, end: 0 },
-      alpha: { start: 1, end: 0 },
-      lifespan: 300,
-      quantity: 60,
-      tint: [0xffffff, 0xffffff, 0xffff00],
-      blendMode: Phaser.BlendModes.ADD,
-      gravityY: 100 * dpr,
-    });
-    flashEmitter.setDepth(101);
-    this.particleEmitters.push(flashEmitter);
-    explosionObjects.push(flashEmitter);
-
-    // Main fire burst - bright explosive upward movement
-    const fireEmitter = this.scene.add.particles(centerX, centerY, "fire-particle", {
-      speed: { min: 120 * dpr, max: 220 * dpr },
-      angle: { min: -120, max: -60 }, // More upward focused (not full 360)
-      scale: { start: 2, end: 0.1 },
-      alpha: { start: 1, end: 0 },
-      lifespan: 600,
-      quantity: 100,
-      tint: [0xffff00, 0xffdd00, 0xffaa00],
-      blendMode: Phaser.BlendModes.ADD,
-      gravityY: 150 * dpr,
-      frequency: -1,
-    });
-    fireEmitter.setDepth(100);
-    this.particleEmitters.push(fireEmitter);
-    explosionObjects.push(fireEmitter);
-
-    // Smoke - rising from explosion center
-    const smokeEmitter = this.scene.add.particles(centerX, centerY, "smoke-particle", {
-      speed: { min: 40 * dpr, max: 90 * dpr },
-      angle: { min: -110, max: -70 }, // Mostly upward
-      scale: { start: 1.2, end: 3 },
-      alpha: { start: 0.6, end: 0 },
-      lifespan: 1800,
-      quantity: 35,
-      tint: [0x333333, 0x444444, 0x555555],
-      gravityY: -60 * dpr,
-      frequency: -1,
-    });
-    smokeEmitter.setDepth(98);
-    this.particleEmitters.push(smokeEmitter);
-    explosionObjects.push(smokeEmitter);
-
-    // Emit all particles
-    if (flashEmitter && flashEmitter.active) {
-      flashEmitter.explode();
-    }
-    if (fireEmitter && fireEmitter.active) {
-      fireEmitter.explode();
-    }
-
-    // Delayed smoke for realism
-    this.scene.time.delayedCall(100, () => {
-      if (smokeEmitter && smokeEmitter.active && this.scene && this.scene.sys.isActive()) {
-        smokeEmitter.explode();
-      }
-    });
-
-    // Trigger electric-leftover sprite after a short delay
-    const randomDelay = 50 + Math.floor(Math.random() * 200); // Random 50-250ms delay
-    this.scene.time.delayedCall(randomDelay, () => {
-      if (!this.scene || !this.scene.sys.isActive()) return;
-
-      const electricSprite = this.scene.add.sprite(centerX, centerY, "electric-leftover-6");
-      const electricScale = (characterSize / electricSprite.width) * 0.8;
-      electricSprite.setScale(electricScale);
-      electricSprite.setDepth(101);
-      electricSprite.setBlendMode(Phaser.BlendModes.ADD);
-      explosionObjects.push(electricSprite);
-      electricSprite.play("electric-leftover-anim");
-
-      // Ignore from UI camera
-      const gameScene = this.scene as any;
-      if (gameScene.ignoreFromUICamera) {
-        gameScene.ignoreFromUICamera(electricSprite);
-      }
-
-      electricSprite.on("animationcomplete", () => {
-        electricSprite.destroy();
-      });
-    });
-
-    // Clean up particle emitters
-    this.scene.time.delayedCall(2000, () => {
-      if (!this.scene || !this.scene.sys.isActive()) return;
-
-      if (flashEmitter && flashEmitter.active) flashEmitter.destroy();
-      if (fireEmitter && fireEmitter.active) fireEmitter.destroy();
-      if (smokeEmitter && smokeEmitter.active) smokeEmitter.destroy();
+    // CRITICAL: Check if scene is still valid before attempting explosion
+    if (!this.scene || !this.scene.sys || !this.scene.sys.isActive()) {
+      console.warn('[Target] Explode called on invalid scene, skipping');
       if (onComplete) onComplete();
-    });
+      return [];
+    }
 
-    // Return all explosion objects so they can be ignored by UI camera
-    return explosionObjects;
+    try {
+      const dpr = this.gameConfig.dpr;
+      const containerBounds = this.container.getBounds();
+
+      // Get the center position in screen coordinates
+      const centerX = containerBounds.centerX;
+      const centerY = containerBounds.centerY;
+
+      const characterSize = Math.max(containerBounds.width, containerBounds.height);
+
+      // Track all explosion objects for camera ignore
+      const explosionObjects: Phaser.GameObjects.GameObject[] = [];
+
+      // Bright flash circle - intense light burst
+      const flashCircle = this.scene.add.circle(centerX, centerY, characterSize * 0.3, 0xffffff, 1);
+      flashCircle.setDepth(102);
+      flashCircle.setBlendMode(Phaser.BlendModes.ADD);
+      explosionObjects.push(flashCircle);
+      this.scene.tweens.add({
+        targets: flashCircle,
+        scale: 4,
+        alpha: 0,
+        duration: 300,
+        ease: "Cubic.easeOut",
+        onComplete: () => flashCircle.destroy(),
+      });
+
+      // Secondary glow ring
+      const glowRing = this.scene.add.circle(centerX, centerY, characterSize * 0.4, 0xffff00, 0.8);
+      glowRing.setDepth(102);
+      glowRing.setBlendMode(Phaser.BlendModes.ADD);
+      explosionObjects.push(glowRing);
+      this.scene.tweens.add({
+        targets: glowRing,
+        scale: 3,
+        alpha: 0,
+        duration: 500,
+        ease: "Cubic.easeOut",
+        onComplete: () => glowRing.destroy(),
+      });
+
+      // Outer transparent ring - final light wave
+      const outerRing = this.scene.add.circle(centerX, centerY, characterSize * 0.5, 0xffaa00, 0.5);
+      outerRing.setDepth(102);
+      outerRing.setBlendMode(Phaser.BlendModes.ADD);
+      explosionObjects.push(outerRing);
+      this.scene.tweens.add({
+        targets: outerRing,
+        scale: 5,
+        alpha: 0,
+        duration: 700,
+        ease: "Cubic.easeOut",
+        onComplete: () => outerRing.destroy(),
+      });
+
+      // Core explosion flash - bright white burst
+      const flashEmitter = this.scene.add.particles(centerX, centerY, "fire-particle", {
+        speed: { min: 80 * dpr, max: 150 * dpr },
+        angle: { min: -110, max: -70 }, // Focused upward
+        scale: { start: 3, end: 0 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 300,
+        quantity: 60,
+        tint: [0xffffff, 0xffffff, 0xffff00],
+        blendMode: Phaser.BlendModes.ADD,
+        gravityY: 100 * dpr,
+      });
+      flashEmitter.setDepth(101);
+      this.particleEmitters.push(flashEmitter);
+      explosionObjects.push(flashEmitter);
+
+      // Main fire burst - bright explosive upward movement
+      const fireEmitter = this.scene.add.particles(centerX, centerY, "fire-particle", {
+        speed: { min: 120 * dpr, max: 220 * dpr },
+        angle: { min: -120, max: -60 }, // More upward focused (not full 360)
+        scale: { start: 2, end: 0.1 },
+        alpha: { start: 1, end: 0 },
+        lifespan: 600,
+        quantity: 100,
+        tint: [0xffff00, 0xffdd00, 0xffaa00],
+        blendMode: Phaser.BlendModes.ADD,
+        gravityY: 150 * dpr,
+        frequency: -1,
+      });
+      fireEmitter.setDepth(100);
+      this.particleEmitters.push(fireEmitter);
+      explosionObjects.push(fireEmitter);
+
+      // Smoke - rising from explosion center
+      const smokeEmitter = this.scene.add.particles(centerX, centerY, "smoke-particle", {
+        speed: { min: 40 * dpr, max: 90 * dpr },
+        angle: { min: -110, max: -70 }, // Mostly upward
+        scale: { start: 1.2, end: 3 },
+        alpha: { start: 0.6, end: 0 },
+        lifespan: 1800,
+        quantity: 35,
+        tint: [0x333333, 0x444444, 0x555555],
+        gravityY: -60 * dpr,
+        frequency: -1,
+      });
+      smokeEmitter.setDepth(98);
+      this.particleEmitters.push(smokeEmitter);
+      explosionObjects.push(smokeEmitter);
+
+      // Emit all particles with safety checks
+      if (flashEmitter && flashEmitter.active) {
+        try { flashEmitter.explode(); } catch (e) { console.warn('[Target] Flash emitter explode failed:', e); }
+      }
+      if (fireEmitter && fireEmitter.active) {
+        try { fireEmitter.explode(); } catch (e) { console.warn('[Target] Fire emitter explode failed:', e); }
+      }
+
+      // Delayed smoke for realism
+      this.scene.time.delayedCall(100, () => {
+        if (smokeEmitter && smokeEmitter.active && this.scene && this.scene.sys.isActive()) {
+          try { smokeEmitter.explode(); } catch (e) { console.warn('[Target] Smoke emitter explode failed:', e); }
+        }
+      });
+
+      // Trigger electric-leftover sprite after a short delay
+      const randomDelay = 50 + Math.floor(Math.random() * 200); // Random 50-250ms delay
+      this.scene.time.delayedCall(randomDelay, () => {
+        if (!this.scene || !this.scene.sys.isActive()) return;
+
+        const electricSprite = this.scene.add.sprite(centerX, centerY, "electric-leftover-6");
+        const electricScale = (characterSize / electricSprite.width) * 0.8;
+        electricSprite.setScale(electricScale);
+        electricSprite.setDepth(101);
+        electricSprite.setBlendMode(Phaser.BlendModes.ADD);
+        explosionObjects.push(electricSprite);
+        electricSprite.play("electric-leftover-anim");
+
+        // Ignore from UI camera
+        const gameScene = this.scene as any;
+        if (gameScene.ignoreFromUICamera) {
+          gameScene.ignoreFromUICamera(electricSprite);
+        }
+
+        electricSprite.on("animationcomplete", () => {
+          electricSprite.destroy();
+        });
+      });
+
+      // Clean up particle emitters
+      this.scene.time.delayedCall(2000, () => {
+        if (!this.scene || !this.scene.sys.isActive()) return;
+
+        if (flashEmitter && flashEmitter.active) flashEmitter.destroy();
+        if (fireEmitter && fireEmitter.active) fireEmitter.destroy();
+        if (smokeEmitter && smokeEmitter.active) smokeEmitter.destroy();
+        if (onComplete) onComplete();
+      });
+
+      // Return all explosion objects so they can be ignored by UI camera
+      return explosionObjects;
+    } catch (error) {
+      console.error('[Target] Error in explode():', error);
+      if (onComplete) onComplete();
+      return [];
+    }
   }
 
   /**
