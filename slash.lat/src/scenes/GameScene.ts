@@ -74,6 +74,8 @@ export class GameScene extends Scene {
   private activityCheckEvent?: Phaser.Time.TimerEvent;
   private isRetry: boolean = false;
   private isInitializing: boolean = true; // Prevent damage during initialization
+  private initTimer: number = 0;
+  private readyText?: Phaser.GameObjects.Text;
 
   private resizeHandler?: () => void;
 
@@ -279,6 +281,7 @@ export class GameScene extends Scene {
 
   shutdown(): void {
     console.log('[SCENE] Shutting down GameScene - cleaning up resources...');
+    console.trace("Shutdown triggered by:");
 
     // 1. Stop Managers
     this.progressionManager?.stop();
@@ -591,7 +594,7 @@ export class GameScene extends Scene {
     console.log('[INIT] Initialization protection ACTIVE - 3-second grace period');
 
     // UX: Add Visual Countdown/Ready Message so user doesn't think game is lagging
-    const readyText = this.add.text(
+    this.readyText = this.add.text(
       this.gameConfig.canvasWidth / 2,
       this.gameConfig.canvasHeight * 0.4,
       "GET READY",
@@ -608,7 +611,7 @@ export class GameScene extends Scene {
 
     // Fade in "GET READY"
     this.tweens.add({
-      targets: readyText,
+      targets: this.readyText,
       alpha: 1,
       scale: { from: 0.5, to: 1.2 },
       duration: 500,
@@ -616,7 +619,7 @@ export class GameScene extends Scene {
       onComplete: () => {
         // Pulse animation
         this.tweens.add({
-          targets: readyText,
+          targets: this.readyText,
           scale: 1,
           duration: 500,
           yoyo: true,
@@ -640,33 +643,9 @@ export class GameScene extends Scene {
       this.gameConfig
     );
 
-    // Start ProgressionManager AFTER 3-second grace period
-    this.time.delayedCall(3000, () => {
-      this.isInitializing = false;
-      console.log('[INIT] Grace period COMPLETE - enemies can now spawn and attack');
-
-      // Change text to "SURVIVE!"
-      readyText.setText("SURVIVE!");
-      readyText.setColor("#ff0000");
-      readyText.setScale(1.5);
-
-      // Flash and fade out
-      this.tweens.add({
-        targets: readyText,
-        alpha: 0,
-        scale: 3,
-        duration: 800,
-        ease: 'Power2',
-        onComplete: () => {
-          readyText.destroy();
-        }
-      });
-
-      if (this.progressionManager) {
-        this.progressionManager.start();
-        console.log('[PROGRESSION] Enemy spawning started');
-      }
-    });
+    // Start ProgressionManager via Manual Timer (see update method)
+    this.isInitializing = true;
+    this.initTimer = 0;
 
     // Initialize slash trail effect
     this.slashTrail = new SlashTrail(this, this.gameConfig);
@@ -705,6 +684,9 @@ export class GameScene extends Scene {
   }
 
   onPointerDown(pointer: Phaser.Input.Pointer): void {
+    // Block input during initialization
+    if (this.isInitializing) return;
+
     // Track player activity
     this.lastActivityTime = Date.now();
     this.updateActivityStatus(true);
@@ -721,8 +703,10 @@ export class GameScene extends Scene {
     this.hitTargetsThisSlash.clear(); // Clear hit targets for new slash
     this.slashTrail.startDrawing(gamePos.x, gamePos.y);
 
-    // Play slash sound
-    this.audioManager?.play("knife-slash");
+    // Play randomized slash sound
+    const slashSounds = ["knife-slash", "sword-slice-1", "sword-slice-2", "sword-slice-3", "violent-slice", "rusty-slice"];
+    const soundKey = slashSounds[Math.floor(Math.random() * slashSounds.length)];
+    this.audioManager?.play(soundKey);
   }
 
   onPointerMove(pointer: Phaser.Input.Pointer): void {
@@ -1316,13 +1300,47 @@ export class GameScene extends Scene {
     this.targets.push(target);
   }
 
-  update(): void {
-    // FAILSAFE: If initialization gets stuck for more than 5 seconds, force start
-    if (this.isInitializing && this.time.now > 5000 && this.progressionManager && !this.progressionManager.isActive) {
-      console.warn('[FAILSAFE] Forced initialization completion!');
-      this.isInitializing = false;
-      this.progressionManager.start();
+  update(time: number, delta: number): void {
+    // Manual Timer Logic for Initialization
+    if (this.isInitializing) {
+      this.initTimer += delta;
+
+      // Debug HP periodically
+      if (this.initTimer % 1000 < 20) {
+        console.log(`[DEBUG] Init Timer: ${this.initTimer.toFixed(0)}ms, HP: ${this.currentHP}, Active: ${this.sys.isActive()}`);
+      }
+
+      if (this.initTimer >= 3000) {
+        console.log('[INIT] Grace period COMPLETE (Manual Timer) - enemies can spawn');
+        this.isInitializing = false;
+
+        // Visual updates (moved from delayedCall)
+        if (this.readyText) {
+          this.readyText.setText("SURVIVE!");
+          this.readyText.setColor("#ff0000");
+          this.readyText.setScale(1.5);
+          this.tweens.add({
+            targets: this.readyText,
+            alpha: 0,
+            scale: 3,
+            duration: 800,
+            ease: 'Power2',
+            onComplete: () => {
+              this.readyText?.destroy();
+              this.readyText = undefined;
+            }
+          });
+        }
+
+        if (this.progressionManager) {
+          this.progressionManager.start();
+          console.log('[PROGRESSION] Enemy spawning started');
+        }
+      }
+      return; // Skip other update logic during init
     }
+
+    // Game Over check removed (handled in takeDamage)
 
     // Update slash trail
     if (this.slashTrail) {
@@ -2129,6 +2147,11 @@ export class GameScene extends Scene {
     this.currentHP = Math.max(0, this.currentHP - damage);
     this.updateHPBar();
 
+    // Play randomized impact sound
+    const impactSounds = ["punch-hit", "punch-3", "punch-4", "punch-5"];
+    const soundKey = impactSounds[Math.floor(Math.random() * impactSounds.length)];
+    this.audioManager?.play(soundKey);
+
     // Flash health bar red
     this.flashHealthBarRed();
 
@@ -2173,6 +2196,7 @@ export class GameScene extends Scene {
     // 2. Visual Effects
     this.cameras.main.shake(500, 0.05);
     this.audioManager?.play("explode"); // Big explosion sound
+    this.audioManager?.play("game-over"); // Game Over voice/music
 
     // Dark overlay
     const overlay = this.add.rectangle(

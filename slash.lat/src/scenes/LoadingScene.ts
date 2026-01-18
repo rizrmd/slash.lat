@@ -130,20 +130,38 @@ export class LoadingScene extends Phaser.Scene {
       // Priority load for loading sound
       this.audioManager.preloadAudio("loading-sound", "audio/Loading Sound.mp3");
 
+      // Core SFX
       this.audioManager.preloadAudio("knife-slash", "audio/knife-slash.mp3");
       this.audioManager.preloadAudio("knife-clank", "audio/knife-clank.mp3");
       this.audioManager.preloadAudio("punch-hit", "audio/punch-hit.mp3");
       this.audioManager.preloadAudio("electric-spark", "audio/electric-spark.mp3");
       this.audioManager.preloadAudio("explode", "audio/explode.mp3");
       this.audioManager.preloadAudio("coin-received", "audio/coin-received.mp3");
+      this.audioManager.preloadAudio("game-over", "audio/Game Over.mp3");
+      this.audioManager.preloadAudio("boss-appears", "audio/Boss Enemy Appears.mp3");
+      this.audioManager.preloadAudio("cinematic-boom", "audio/cinematic-boom.mp3");
 
-      // New Character Specific Audio
+      // Weapon/Impact Variants
+      this.audioManager.preloadAudio("sword-slice-1", "audio/sword-slice_blade.mp3");
+      this.audioManager.preloadAudio("sword-slice-2", "audio/sword-slice_blade_2.mp3");
+      this.audioManager.preloadAudio("sword-slice-3", "audio/sword-slice_blade_3.mp3");
+      this.audioManager.preloadAudio("violent-slice", "audio/violent-blade-Slice.mp3");
+      this.audioManager.preloadAudio("rusty-slice", "audio/rusty-blade-slice.mp3.mp3");
+
+      this.audioManager.preloadAudio("punch-3", "audio/punch-03.mp3");
+      this.audioManager.preloadAudio("punch-4", "audio/punch-04.mp3");
+      this.audioManager.preloadAudio("punch-5", "audio/punch-05.mp3");
+      this.audioManager.preloadAudio("bullet-hit", "audio/bullet-hit-metal.mp3");
+      this.audioManager.preloadAudio("rifle-shot", "audio/AR15-Rifle-shot.mp3");
+      this.audioManager.preloadAudio("gunshot", "audio/single-pistol-gunshot.mp3");
+
+      // Character Audio
       this.audioManager.preloadAudio("bee-audio", "audio/Bee Robot.mp3");
       this.audioManager.preloadAudio("lion-audio", "audio/robot-tiger.mp3");
+      this.audioManager.preloadAudio("lion-attack-1", "audio/lion-attack.mp3");
+      this.audioManager.preloadAudio("lion-attack-2", "audio/Lion-attack-2.mp3");
       this.audioManager.preloadAudio("robot-audio", "audio/Foot Step robot.mp3");
       this.audioManager.preloadAudio("alien-audio", "audio/little-alien.mp3");
-      this.audioManager.preloadAudio("rusty-slice", "audio/rusty-blade-slice.mp3.mp3");
-      this.audioManager.preloadAudio("gunshot", "audio/single-pistol-gunshot.mp3");
     }
 
     // Load backgrounds
